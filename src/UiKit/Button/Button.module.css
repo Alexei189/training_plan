@@ -1,0 +1,40 @@
+.button {
+  background-color: #fff;
+  border: 0.083em solid var(--color-brand-yellow);
+  border-radius: 0.333em;
+  cursor: pointer;
+  font-size: 0.857em;
+  font-family: inherit;
+  font-weight: 500;
+  line-height: 1.16em;
+  margin: 0;
+  padding: 0.417em 1.25em 0.333em;
+  --hover-background-color:#fda610;
+}
+
+.button:focus {
+  outline: none;
+}
+
+.button:focus-visible {
+  outline: 0.167em solid var(--color-brand-yellow);
+  outline-offset: 0.167em;
+}
+
+.button:hover {
+  background-color:var(--hover-background-color);
+}
+
+.button:disabled {
+  background-color: #fff;
+  border-color: #fef0d8;
+  color: #ccc;
+}
+
+.button--primary {
+  background-color: var(--hover-background-color);
+}
+
+.button--primary:disabled {
+  background-color: #fef0d8;
+}
