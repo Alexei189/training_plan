@@ -1,19 +1,169 @@
-:root {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color-scheme: light dark;
+/* ===== Сброс ===== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-* {
-  box-sizing: border-box;
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: none;
 }
 
 body {
-  margin: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--app-text);
+  background-color: var(--app-bg);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
   min-height: 100vh;
-  display: grid;
-  place-items: center;
+  min-height: 100dvh;
+
+  /* Безопасные зоны */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
+/* ===== React root ===== */
 #root {
-  padding: 2rem;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+/* ===== CSS-переменные ===== */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  --app-bg: #ffffff;
+  --app-text: #1a1a1a;
+  --app-muted: #6b7280;
+  --app-border: #e5e7eb;
+  --app-accent: #007aff;
+  --app-radius: 12px;
+
+  /* Высота header/footer для layout */
+  --header-height: 56px;
+  --footer-height: 60px;
+}
+
+/* ===== Интерактив ===== */
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* ===== Инпуты (без авто-зума на iOS) ===== */
+input,
+textarea,
+select {
+  font: inherit;
+  font-size: 16px; /* ВАЖНО: предотвращает авто-зум */
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ===== Медиа ===== */
+img,
+video,
+svg,
+canvas {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ===== Тёмная тема ===== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-bg: #121212;
+    --app-text: #f5f5f5;
+    --app-muted: #9ca3af;
+    --app-border: #2a2a2a;
+    --app-accent: #0a84ff;
+  }
+}
+
+/* ===== Reduced motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ===== Утилитарные классы (опционально) ===== */
+.safe-top {
+  padding-top: var(--safe-top);
+}
+.safe-bottom {
+  padding-bottom: var(--safe-bottom);
+}
+.safe-x {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Фиксированный layout с учётом safe-area */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  height: var(--header-height);
+  padding-top: var(--safe-top);
+  background: var(--app-bg);
+  border-bottom: 1px solid var(--app-border);
+  z-index: 10;
+}
+
+.app-main {
+  flex: 1;
+  padding: 1rem;
+  /* Скрытие скролла у main — опционально */
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-footer {
+  position: sticky;
+  bottom: 0;
+  height: var(--footer-height);
+  padding-bottom: var(--safe-bottom);
+  background: var(--app-bg);
+  border-top: 1px solid var(--app-border);
 }

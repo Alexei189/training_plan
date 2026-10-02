@@ -4,7 +4,7 @@ import { NavigationItem } from "../Routes/types";
 import { NavLink, Outlet } from "react-router-dom";
 
 import styles from "./App.module.css";
-import Home from "../Pages/Home";
+import PagePlan from "../Pages/PagePlan";
 
 function renderNavigationItem(
   navigationItem: NavigationItem,
@@ -18,10 +18,10 @@ function renderNavigationItem(
 }
 function App({ className, style }: AppProps) {
   return (
-    <div style={style}>
-      <Home />
+    <>
+      <PagePlan />
       <Outlet />
-    </div>
+    </>
   );
 }
 

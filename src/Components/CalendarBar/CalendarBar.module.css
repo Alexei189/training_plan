@@ -1,0 +1,23 @@
+.bar__body {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  background-color: rgb(103, 239, 239);
+  padding-bottom: 5px;
+  padding-top: 5px;
+}
+.cell {
+  flex: 1;
+  margin-left: 5px;
+  margin-right: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: antiquewhite;
+}
+.cell__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}

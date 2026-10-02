@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import App from "./App/App";
 import { registerSW } from "virtual:pwa-register";
 import "./index.css";
@@ -13,7 +14,7 @@ if (!container) {
 const updateSW = registerSW({
   onNeedRefresh() {
     if (confirm("Доступна новая версия. Обновить?")) {
-      updateSW(true); // true = перезагрузить страницу после активации
+      updateSW(true);
     }
   },
   onOfflineReady() {
@@ -23,6 +24,8 @@ const updateSW = registerSW({
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
   </StrictMode>,
 );
