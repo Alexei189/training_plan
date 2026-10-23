@@ -1,11 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import App from "./App/App";
-import { Provider } from "react-redux"; // 1. Импортируем Provider
-import { store } from "./Store";
 import { registerSW } from "virtual:pwa-register";
-import "./index.css";
+
+import { App } from "@/app";
+
+import "@/app/styles/index.css";
 
 const container = document.getElementById("root");
 
@@ -26,10 +25,6 @@ const updateSW = registerSW({
 
 createRoot(container).render(
   <StrictMode>
-    <Provider store={store}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </Provider>
+    <App />
   </StrictMode>,
 );

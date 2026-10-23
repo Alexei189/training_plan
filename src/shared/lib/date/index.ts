@@ -1,0 +1,1 @@
+export { getCurrentWeekShort } from "./getCurrentWeekShort";

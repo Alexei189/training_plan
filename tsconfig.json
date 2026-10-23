@@ -6,9 +6,17 @@
     "moduleResolution": "bundler",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "types": [
       "vite/client",
-      "vite-plugin-pwa/vanillajs"
+      "vite-plugin-pwa/vanillajs",
+      "vitest/globals",
+      "@testing-library/jest-dom"
     ]
-  }
+  },
+  "include": ["src"],
+  "exclude": ["server", "dist", "node_modules"]
 }

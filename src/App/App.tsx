@@ -1,28 +1,10 @@
-import { AppProps } from "./types";
-import { navigation } from "../Routes";
-import { NavigationItem } from "../Routes/types";
-import { NavLink, Outlet } from "react-router-dom";
+import { AppProviders } from "./providers";
+import { AppRouter } from "./router";
 
-import styles from "./App.module.css";
-import PagePlan from "../Pages/PagePlan";
-
-function renderNavigationItem(
-  navigationItem: NavigationItem,
-  rootStyles?: Record<string, string>,
-) {
+export function App() {
   return (
-    <NavLink to={navigationItem.href} end={navigationItem.href === "/"}>
-      {navigationItem.displayName}
-    </NavLink>
+    <AppProviders>
+      <AppRouter />
+    </AppProviders>
   );
 }
-function App({ className, style }: AppProps) {
-  return (
-    <>
-      <PagePlan />
-      <Outlet />
-    </>
-  );
-}
-
-export default App;
