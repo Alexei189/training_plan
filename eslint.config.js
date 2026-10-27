@@ -38,7 +38,14 @@ export default tseslint.config(
       'simple-import-sort/imports': ['error', {
         groups: [
           ['^react', '^@?\\w'],
-          ['^(@|Components)(/.*|$)'],
+          [
+            '^@/app(/.*|$)',
+            '^@/pages(/.*|$)',
+            '^@/widgets(/.*|$)',
+            '^@/features(/.*|$)',
+            '^@/entities(/.*|$)',
+            '^@/shared(/.*|$)',
+          ],
           ['^\\.\\.(?!/?$)', '^\\.\\./?$'],
           ['^\\./(?=.*/)(?!/?$)', '^\\.(?!/?$)', '^\\./?$'],
           ['^\\u0000'],

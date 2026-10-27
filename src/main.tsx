@@ -1,16 +1,37 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import App from "./App/App";
-import { Provider } from "react-redux"; // 1. Импортируем Provider
-import { store } from "./Store";
 import { registerSW } from "virtual:pwa-register";
-import "./index.css";
+
+import { App } from "@/app";
+
+import "@/app/styles/index.css";
 
 const container = document.getElementById("root");
 
 if (!container) {
   throw new Error("Root element #root not found");
+}
+
+if (import.meta.env.DEV && "serviceWorker" in navigator) {
+  const hadController = navigator.serviceWorker.controller !== null;
+
+  void navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+    if (registrations.length === 0 && !hadController) {
+      return;
+    }
+
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
+
+    if (hadController && sessionStorage.getItem("dev-sw-reset") !== "1") {
+      sessionStorage.setItem("dev-sw-reset", "1");
+      window.location.reload();
+    }
+  });
 }
 
 const updateSW = registerSW({
@@ -26,10 +47,6 @@ const updateSW = registerSW({
 
 createRoot(container).render(
   <StrictMode>
-    <Provider store={store}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </Provider>
+    <App />
   </StrictMode>,
 );
