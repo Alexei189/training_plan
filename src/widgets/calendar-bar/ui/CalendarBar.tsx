@@ -15,7 +15,7 @@ function CalendarBar() {
     <div className={styles.bar__body}>
       {days.map((day) => (
         <button
-          onClick={() => handleClick(`${day.day} ${day.weekday}`)}
+          onClick={() => handleClick(day.date)}
           className={styles.cell}
           key={day.day}
         >

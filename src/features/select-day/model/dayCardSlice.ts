@@ -1,11 +1,14 @@
+import { getDateString } from "@/shared/lib/date";
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+
+const todayISO: string = new Date().toISOString();
 
 export interface DayCardState {
   currentDate: string;
 }
 
 const initialState: DayCardState = {
-  currentDate: "5 октября",
+  currentDate: getDateString(),
 };
 
 const dayCardSlice = createSlice({
