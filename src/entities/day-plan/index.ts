@@ -1,2 +1,2 @@
 export { dayPlanApi, useGetDayPlanQuery } from "./api/dayPlanApi";
-export type { DayArgs, TrainingDay } from "./model/types";
+export type { DayArgs, DayData, Plan } from "./model/types";

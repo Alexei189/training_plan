@@ -1,0 +1,84 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 5px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.card,
+.cardSelected {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 6px 4px;
+  border: 1px solid #000;
+  border-radius: 4px;
+  color: #1a1a1a;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.cardSelected {
+  outline: 2px solid #000;
+  outline-offset: -4px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #000;
+  border-radius: 4px;
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid #000;
+  background-color: rgb(244, 220, 220);
+}
+
+.date {
+  font-weight: 600;
+}
+
+.titleField,
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.titleField textarea,
+.field textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px;
+  border: 1px solid #000;
+  border-radius: 4px;
+  background: #fff;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}

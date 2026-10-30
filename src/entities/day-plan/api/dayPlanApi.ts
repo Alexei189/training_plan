@@ -1,12 +1,12 @@
 import { baseApi } from "@/shared/api";
 
-import { DayArgs, TrainingDay } from "../model/types";
+import { DayArgs, DayData } from "../model/types";
 
 export const dayPlanApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    getDayPlan: builder.query<TrainingDay[], DayArgs>({
+    getDayPlan: builder.query<DayData, DayArgs>({
       query: ({ date }) => ({
-        url: "/trainingDay",
+        url: "/dayPlan",
         params: { date },
       }),
       providesTags: ["DayPlan"],
