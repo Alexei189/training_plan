@@ -1,11 +1,14 @@
 import { configureStore } from "@reduxjs/toolkit";
 
-import "@/entities/day-plan";
 import { dayCardReducer } from "@/features/select-day/model/dayCardSlice";
+import { persistRole, sessionReducer } from "@/entities/session";
 import { baseApi } from "@/shared/api";
+
+import "@/entities/day-plan";
 
 export const store = configureStore({
   reducer: {
+    session: sessionReducer,
     dayCard: dayCardReducer,
     [baseApi.reducerPath]: baseApi.reducer,
   },
@@ -15,3 +18,7 @@ export const store = configureStore({
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
+
+store.subscribe(() => {
+  persistRole(store.getState().session.role);
+});
