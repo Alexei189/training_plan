@@ -1,6 +1,6 @@
 import { baseApi } from "@/shared/api";
 
-import { DayArgs, DayData } from "../model/types";
+import { DayArgs, DayData, SaveBuilderDayBody } from "../model/types";
 
 export const dayPlanApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -11,7 +11,15 @@ export const dayPlanApi = baseApi.injectEndpoints({
       }),
       providesTags: ["DayPlan"],
     }),
+    saveBuilderDay: builder.mutation<DayData, SaveBuilderDayBody>({
+      query: (body) => ({
+        url: "/saveBuilderDay",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["DayPlan"],
+    }),
   }),
 });
 
-export const { useGetDayPlanQuery } = dayPlanApi;
+export const { useGetDayPlanQuery, useSaveBuilderDayMutation } = dayPlanApi;

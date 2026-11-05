@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { useSaveBuilderDay } from "@/features/save-builder-day";
+import { selectAthleteId } from "@/features/select-athlete";
 import { selectCurrentDate } from "@/features/select-day";
 import {
   type PlanSectionKey,
@@ -81,6 +83,8 @@ type DayAction = (typeof actions)[number]["id"];
 
 function BuilderDay() {
   const currentDate = useAppSelector(selectCurrentDate);
+  const athleteId = useAppSelector(selectAthleteId);
+  const { save, isLoading } = useSaveBuilderDay();
   const [drafts, setDrafts] = useState<Record<string, DayDraft>>({});
   const [editingByDate, setEditingByDate] = useState<Record<string, boolean>>(
     {},
@@ -108,12 +112,20 @@ function BuilderDay() {
     }
 
     const closeOnOutside = (event: MouseEvent) => {
+      if (isLoading) {
+        return;
+      }
+
       if (!menuRef.current?.contains(event.target as Node)) {
         setMenuOpen(false);
       }
     };
 
     const closeOnEscape = (event: KeyboardEvent) => {
+      if (isLoading) {
+        return;
+      }
+
       if (event.key === "Escape") {
         setMenuOpen(false);
       }
@@ -126,7 +138,7 @@ function BuilderDay() {
       document.removeEventListener("mousedown", closeOnOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [menuOpen]);
+  }, [isLoading, menuOpen]);
 
   const toggleSection = (key: PlanSectionKey) => {
     updateDraft((current) => ({
@@ -137,13 +149,41 @@ function BuilderDay() {
     }));
   };
 
-  const runAction = (action: DayAction) => {
-    if (action === "edit") {
-      setEditingByDate((prev) => ({ ...prev, [currentDate]: true }));
+  const saveDraft = async () => {
+    if (isLoading || !isEditing || draft.activeKeys.length === 0) {
+      return;
     }
 
+    const date = currentDate;
+    const sections: DayDraft["texts"] = {};
+
+    for (const key of draft.activeKeys) {
+      sections[key] = draft.texts[key] ?? "";
+    }
+
+    const saved = await save({
+      date,
+      athleteId,
+      workoutName: draft.workoutName,
+      sections,
+    });
+
+    if (!saved) {
+      return;
+    }
+
+    setEditingByDate((prev) => ({ ...prev, [date]: false }));
+    setMenuOpen(false);
+  };
+
+  const runAction = (action: DayAction) => {
     if (action === "save") {
-      setEditingByDate((prev) => ({ ...prev, [currentDate]: false }));
+      void saveDraft();
+      return;
+    }
+
+    if (action === "edit") {
+      setEditingByDate((prev) => ({ ...prev, [currentDate]: true }));
     }
 
     if (action === "copy") {
@@ -165,7 +205,7 @@ function BuilderDay() {
     }
 
     if (action === "save") {
-      return !isEditing;
+      return !isEditing || draft.activeKeys.length === 0 || isLoading;
     }
 
     if (action === "paste") {
@@ -211,7 +251,13 @@ function BuilderDay() {
                 aria-label="Действия"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
-                onClick={() => setMenuOpen((open) => !open)}
+                onClick={() => {
+                  if (isLoading) {
+                    return;
+                  }
+
+                  setMenuOpen((open) => !open);
+                }}
               >
                 ···
               </button>
@@ -221,7 +267,11 @@ function BuilderDay() {
                     type="button"
                     className={styles.backdrop}
                     aria-label="Закрыть меню"
-                    onClick={() => setMenuOpen(false)}
+                    onClick={() => {
+                      if (!isLoading) {
+                        setMenuOpen(false);
+                      }
+                    }}
                   />
                   <ul className={styles.menuList} role="menu">
                     <li className={styles.menuTitle} role="presentation">
@@ -236,7 +286,9 @@ function BuilderDay() {
                           disabled={isActionDisabled(action.id)}
                           onClick={() => runAction(action.id)}
                         >
-                          {action.label}
+                          {action.id === "save" && isLoading
+                            ? "Сохранение…"
+                            : action.label}
                         </button>
                       </li>
                     ))}

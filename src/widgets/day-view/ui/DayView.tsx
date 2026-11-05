@@ -11,10 +11,14 @@ function DayView() {
   console.log(currentDate);
   const { data } = useDayPlanQuery();
   console.log(data);
+  const workoutName = (data?.workoutName ?? "").trim();
 
   return (
     <div className={styles.root}>
-      <div className={styles.header}>{getDateWithWeekDay(currentDate)}</div>
+      <div className={styles.header}>
+        <div>{getDateWithWeekDay(currentDate)}</div>
+        {workoutName ? <div className={styles.title}>{workoutName}</div> : null}
+      </div>
       <div className={styles.body}>
         {planSectionKeys.map(
           (key) =>
