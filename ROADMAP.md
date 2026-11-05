@@ -15,16 +15,16 @@
 
 ### A1. Сохранение плана дня тренером
 - **Спецификации:** `specs/001-save-builder-day.md` (клиент), `specs/003-day-plan-mock.md` (мок).
-- **FSD:**
-  - `features/save-builder-day/ui/SaveButton.tsx` — кнопка `idle` / `loading`; активна, если в `BuilderDay` есть хотя бы один блок.
-  - `features/save-builder-day/model/useSaveBuilderDay.ts` — мутация `POST /api/saveBuilderDay` с телом `{ date, athleteId, sections }`. Ошибка сети и сервера — `alert()` с пометкой `// TODO: replace with Toast`.
-  - `entities/builder-day/api/builderDayApi.ts` — `saveBuilderDay` через `injectEndpoints`, `invalidatesTags: ["DayPlan"]`.
-  - `entities/builder-day/model/types.ts` — тело запроса.
-  - `src/App/store/index.ts` — импорт слайса, чтобы эндпоинт зарегистрировался.
+- **FSD** (`specs/refactor-001-roadmap-a1-fsd.md`):
+  - `widgets/builder-day/ui/BuilderDay.tsx` — пункт «Сохранить». Отдельной кнопки нет. Доступен, когда дата в режиме редактирования и в `activeKeys` есть хотя бы один ключ. Пока запрос идёт, подпись «Сохранение…» и пункт заблокирован.
+  - `features/save-builder-day/model/useSaveBuilderDay.ts` — принимает `{ date, athleteId, workoutName, sections }` и вызывает мутацию. Ошибка сети и сервера — `alert()` с пометкой `// TODO: replace with Toast`. Наружу: сохранение и `isLoading`. Аргументы собирает виджет: фича соседние фичи не импортирует.
+  - `entities/day-plan/api/dayPlanApi.ts` — `saveBuilderDay` через `injectEndpoints` того же `dayPlanApi`, `invalidatesTags: ["DayPlan"]`. Сущность `builder-day` и второй `createApi` не заводятся.
+  - `entities/day-plan/model/types.ts` — `SaveBuilderDayBody`. Ответ мутации — `DayData`: `{ date, workoutName, plan }`.
+  - `features/select-athlete/` — слайс выбранного спортсмена. Редьюсер подключается в `src/App/store/index.ts`. Модуль `@/entities/day-plan` там уже импортирован, отдельный импорт для мутации не нужен.
 - **Мок (`server/`, типы из `src/` не импортирует):**
   - `server/app.ts` — `express.json()`, память `Map` по `date`, `GET /api/dayPlan`, `POST /api/saveBuilderDay`.
   - `server/index.ts` — слушает порт `3001`.
-  - `POST` отвечает `{ date, plan }`, `plan` равен `sections`. Следующий `GET` с той же датой отдаёт эту запись. Повторный `POST` её заменяет. Даты без сохранения — `{ date, plan: {} }`. Нет `date` или пустой `athleteId` — `400`, запись не создаётся. `athleteId` в ключ хранилища не входит. `workoutName` в контракт не входит.
+  - `POST` отвечает `{ date, workoutName, plan }`, `plan` равен строковым полям `sections`. Следующий `GET` с той же датой отдаёт эту запись. Повторный `POST` заменяет `plan` и `workoutName`. Даты без сохранения — `{ date, workoutName: "", plan: {} }`. Нет `date` или пустой `athleteId` — `400`, запись не создаётся. `athleteId` в ключ хранилища не входит. `workoutName` хранится отдельно от `plan`.
 - **Тесты (TDD):**
   - `features/save-builder-day/model/useSaveBuilderDay.test.tsx` — успех инвалидирует тег `DayPlan`; ошибка вызывает `alert`.
   - `server/dayPlan.test.ts` — `POST` затем `GET`, замена плана, пустая дата, `POST` без `athleteId`.
