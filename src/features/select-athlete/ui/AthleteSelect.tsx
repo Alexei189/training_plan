@@ -1,11 +1,14 @@
-import { useState } from "react";
-
 import { mockAthletes } from "@/entities/athlete";
+import { useAppDispatch, useAppSelector } from "@/shared/lib/redux";
+
+import { setAthleteId } from "../model/athleteSlice";
+import { selectAthleteId } from "../model/selectors";
 
 import styles from "./AthleteSelect.module.css";
 
 function AthleteSelect() {
-  const [athleteId, setAthleteId] = useState(mockAthletes[0].id);
+  const dispatch = useAppDispatch();
+  const athleteId = useAppSelector(selectAthleteId);
 
   return (
     <div className={styles.root}>
@@ -16,7 +19,7 @@ function AthleteSelect() {
         id="athlete-select"
         className={styles.select}
         value={athleteId}
-        onChange={(event) => setAthleteId(event.target.value)}
+        onChange={(event) => dispatch(setAthleteId(event.target.value))}
       >
         {mockAthletes.map((athlete) => (
           <option key={athlete.id} value={athlete.id}>

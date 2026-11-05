@@ -1,0 +1,104 @@
+import express from "express";
+
+function readDate(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const date = value.trim();
+  return date.length > 0 ? date : null;
+}
+
+function readAthleteId(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const athleteId = value.trim();
+  return athleteId.length > 0 ? athleteId : null;
+}
+
+type Plan = Record<string, string>;
+
+interface StoredDay {
+  workoutName: string;
+  plan: Plan;
+}
+
+interface DayData {
+  date: string;
+  workoutName: string;
+  plan: Plan;
+}
+
+function readWorkoutName(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value.trim();
+}
+
+function readSections(value: unknown): Plan {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  const plan: Plan = {};
+
+  for (const [key, item] of Object.entries(value)) {
+    if (key === "workoutName" || typeof item !== "string") {
+      continue;
+    }
+
+    plan[key] = item;
+  }
+
+  return plan;
+}
+
+const days = new Map<string, StoredDay>();
+
+export const app = express();
+
+app.use(express.json());
+
+app.get("/api/dayPlan", (req, res) => {
+  const date = readDate(req.query.date);
+
+  if (!date) {
+    res.status(400).json({ message: "Параметр date обязателен" });
+    return;
+  }
+
+  const stored = days.get(date);
+  const body: DayData = {
+    date,
+    workoutName: stored?.workoutName ?? "",
+    plan: stored?.plan ?? {},
+  };
+  res.json(body);
+});
+
+app.post("/api/saveBuilderDay", (req, res) => {
+  const date = readDate(req.body?.date);
+
+  if (!date) {
+    res.status(400).json({ message: "Параметр date обязателен" });
+    return;
+  }
+
+  const athleteId = readAthleteId(req.body?.athleteId);
+
+  if (!athleteId) {
+    res.status(400).json({ message: "Параметр athleteId обязателен" });
+    return;
+  }
+
+  const workoutName = readWorkoutName(req.body?.workoutName);
+  const plan = readSections(req.body?.sections);
+  days.set(date, { workoutName, plan });
+
+  const body: DayData = { date, workoutName, plan };
+  res.json(body);
+});

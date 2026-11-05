@@ -1,5 +1,6 @@
 import { configureStore } from "@reduxjs/toolkit";
 
+import { selectAthleteReducer } from "@/features/select-athlete";
 import { dayCardReducer } from "@/features/select-day/model/dayCardSlice";
 import { persistRole, sessionReducer } from "@/entities/session";
 import { baseApi } from "@/shared/api";
@@ -10,6 +11,7 @@ export const store = configureStore({
   reducer: {
     session: sessionReducer,
     dayCard: dayCardReducer,
+    selectAthlete: selectAthleteReducer,
     [baseApi.reducerPath]: baseApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
