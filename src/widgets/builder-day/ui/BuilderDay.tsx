@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import type { DayData } from "@/entities/day-plan";
 import { useSaveBuilderDay } from "@/features/save-builder-day";
 import { selectAthleteId } from "@/features/select-athlete";
-import { selectCurrentDate } from "@/features/select-day";
+import { selectCurrentDate, useDayPlanQuery } from "@/features/select-day";
 import {
   type PlanSectionKey,
   planSectionKeys,
@@ -19,8 +20,6 @@ interface DayDraft {
   texts: Partial<Record<PlanSectionKey, string>>;
 }
 
-let copiedDraft: DayDraft | null = null;
-
 function emptyDraft(): DayDraft {
   return {
     workoutName: "",
@@ -34,6 +33,24 @@ function cloneDraft(draft: DayDraft): DayDraft {
     workoutName: draft.workoutName,
     activeKeys: [...draft.activeKeys],
     texts: { ...draft.texts },
+  };
+}
+
+function draftFromDayData(data: DayData): DayDraft {
+  const plan = data.plan as Partial<Record<string, unknown>>;
+  const activeKeys = planSectionKeys.filter(
+    (key) => typeof plan[key] === "string",
+  );
+  const texts: DayDraft["texts"] = {};
+
+  for (const key of activeKeys) {
+    texts[key] = plan[key] as string;
+  }
+
+  return {
+    workoutName: data.workoutName,
+    activeKeys,
+    texts,
   };
 }
 
@@ -84,16 +101,35 @@ type DayAction = (typeof actions)[number]["id"];
 function BuilderDay() {
   const currentDate = useAppSelector(selectCurrentDate);
   const athleteId = useAppSelector(selectAthleteId);
+  const { currentData } = useDayPlanQuery();
   const { save, isLoading } = useSaveBuilderDay();
   const [drafts, setDrafts] = useState<Record<string, DayDraft>>({});
   const [editingByDate, setEditingByDate] = useState<Record<string, boolean>>(
     {},
   );
   const [menuOpen, setMenuOpen] = useState(false);
-  const [hasClipboard, setHasClipboard] = useState(copiedDraft !== null);
+  const [clipboard, setClipboard] = useState<DayDraft | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const draftReady = Object.prototype.hasOwnProperty.call(drafts, currentDate);
   const draft = drafts[currentDate] ?? emptyDraft();
   const isEditing = editingByDate[currentDate] ?? true;
+
+  useEffect(() => {
+    if (!currentData || currentData.date !== currentDate) {
+      return;
+    }
+
+    setDrafts((prev) => {
+      if (prev[currentDate]) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [currentDate]: draftFromDayData(currentData),
+      };
+    });
+  }, [currentData, currentDate]);
 
   const updateDraft = (update: (current: DayDraft) => DayDraft) => {
     setDrafts((prev) => {
@@ -186,14 +222,14 @@ function BuilderDay() {
       setEditingByDate((prev) => ({ ...prev, [currentDate]: true }));
     }
 
-    if (action === "copy") {
-      copiedDraft = cloneDraft(draft);
-      setHasClipboard(true);
+    if (action === "copy" && draftReady) {
+      setClipboard(cloneDraft(draft));
     }
 
-    if (action === "paste" && copiedDraft) {
-      const next = cloneDraft(copiedDraft);
+    if (action === "paste" && clipboard) {
+      const next = cloneDraft(clipboard);
       updateDraft(() => next);
+      setEditingByDate((prev) => ({ ...prev, [currentDate]: true }));
     }
 
     setMenuOpen(false);
@@ -208,8 +244,12 @@ function BuilderDay() {
       return !isEditing || draft.activeKeys.length === 0 || isLoading;
     }
 
+    if (action === "copy") {
+      return !draftReady;
+    }
+
     if (action === "paste") {
-      return !hasClipboard;
+      return clipboard === null;
     }
 
     return false;
