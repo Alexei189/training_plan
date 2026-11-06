@@ -15,27 +15,31 @@
 
 ### A1. Сохранение плана дня тренером
 - **Спецификации:** `specs/001-save-builder-day.md` (клиент), `specs/003-day-plan-mock.md` (мок).
-- **FSD:**
-  - `features/save-builder-day/ui/SaveButton.tsx` — кнопка `idle` / `loading`; активна, если в `BuilderDay` есть хотя бы один блок.
-  - `features/save-builder-day/model/useSaveBuilderDay.ts` — мутация `POST /api/saveBuilderDay` с телом `{ date, athleteId, sections }`. Ошибка сети и сервера — `alert()` с пометкой `// TODO: replace with Toast`.
-  - `entities/builder-day/api/builderDayApi.ts` — `saveBuilderDay` через `injectEndpoints`, `invalidatesTags: ["DayPlan"]`.
-  - `entities/builder-day/model/types.ts` — тело запроса.
-  - `src/App/store/index.ts` — импорт слайса, чтобы эндпоинт зарегистрировался.
+- **FSD** (`specs/refactor-001-roadmap-a1-fsd.md`):
+  - `widgets/builder-day/ui/BuilderDay.tsx` — пункт «Сохранить». Отдельной кнопки нет. Доступен, когда дата в режиме редактирования и в `activeKeys` есть хотя бы один ключ. Пока запрос идёт, подпись «Сохранение…» и пункт заблокирован.
+  - `features/save-builder-day/model/useSaveBuilderDay.ts` — принимает `{ date, athleteId, workoutName, sections }` и вызывает мутацию. Ошибка сети и сервера — `alert()` с пометкой `// TODO: replace with Toast`. Наружу: сохранение и `isLoading`. Аргументы собирает виджет: фича соседние фичи не импортирует.
+  - `entities/day-plan/api/dayPlanApi.ts` — `saveBuilderDay` через `injectEndpoints` того же `dayPlanApi`, `invalidatesTags: ["DayPlan"]`. Сущность `builder-day` и второй `createApi` не заводятся.
+  - `entities/day-plan/model/types.ts` — `SaveBuilderDayBody`. Ответ мутации — `DayData`: `{ date, workoutName, plan }`.
+  - `features/select-athlete/` — слайс выбранного спортсмена. Редьюсер подключается в `src/App/store/index.ts`. Модуль `@/entities/day-plan` там уже импортирован, отдельный импорт для мутации не нужен.
 - **Мок (`server/`, типы из `src/` не импортирует):**
   - `server/app.ts` — `express.json()`, память `Map` по `date`, `GET /api/dayPlan`, `POST /api/saveBuilderDay`.
   - `server/index.ts` — слушает порт `3001`.
-  - `POST` отвечает `{ date, plan }`, `plan` равен `sections`. Следующий `GET` с той же датой отдаёт эту запись. Повторный `POST` её заменяет. Даты без сохранения — `{ date, plan: {} }`. Нет `date` или пустой `athleteId` — `400`, запись не создаётся. `athleteId` в ключ хранилища не входит. `workoutName` в контракт не входит.
+  - `POST` отвечает `{ date, workoutName, plan }`, `plan` равен строковым полям `sections`. Следующий `GET` с той же датой отдаёт эту запись. Повторный `POST` заменяет `plan` и `workoutName`. Даты без сохранения — `{ date, workoutName: "", plan: {} }`. Нет `date` или пустой `athleteId` — `400`, запись не создаётся. `athleteId` в ключ хранилища не входит. `workoutName` хранится отдельно от `plan`.
 - **Тесты (TDD):**
   - `features/save-builder-day/model/useSaveBuilderDay.test.tsx` — успех инвалидирует тег `DayPlan`; ошибка вызывает `alert`.
   - `server/dayPlan.test.ts` — `POST` затем `GET`, замена плана, пустая дата, `POST` без `athleteId`.
 - **Критерий готовности:** Тренер сохраняет блоки дня. Мок помнит их по дате. Инвалидация `DayPlan` заставляет `useDayPlanQuery` перечитать `GET /api/dayPlan`, и спортсмен видит эти блоки в `DayView`.
 
-### A2. Редактирование существующего дня
-- **Спецификация:** `specs/002-edit-day.md` (создать).
+### A2. Копирование плана в другую дату
+- **Спецификация:** `specs/002-copy-buider-day.md`.
 - **FSD:**
-  - `widgets/builder-day/` — добавить режим редактирования (загрузка данных в форму).
-  - `entities/day-plan/api/` — эндпоинт `updateDayPlan` (PUT/PATCH).
-- **Тесты:** Проверка, что при монтировании виджета данные подтягиваются из кэша RTK Query.
+  - `widgets/builder-day/ui/BuilderDay.tsx` — пункты «Копировать» и «Вставить». Отдельных кнопок нет. Буфер — `DayDraft` в состоянии виджета, один на сессию конструктора. Смена `selectCurrentDate` его не очищает.
+  - «Копировать» доступен, когда черновик даты уже есть: его заполнил `GET` или тренер уже менял дату. Пока запрос даты без черновика не завершился, пункт заблокирован. В буфер кладётся копия `workoutName`, `activeKeys` и `texts`.
+  - «Вставить» заблокирован, пока буфер пуст. Вставка заменяет черновик выбранной даты целиком и включает режим редактирования. `POST` не шлётся. Новая фича, новый эндпоинт и второй `createApi` не заводятся.
+  - Запись вставленного плана — пункт «Сохранить» из A1. Мок A1 не меняется.
+- **Тесты (TDD):** `widgets/builder-day/ui/BuilderDay.test.tsx` — копирование названия и блоков, включая пустую строку; блокировка копирования до готовности черновика; замена черновика другой даты без слияния; исходная дата и буфер после правки источника не меняются; вставка не вызывает сохранение, следующее «Сохранить» уходит с датой новой карточки; ответ `GET` после вставки черновик не затирает.
+- **Критерий готовности:** Тренер копирует день и вставляет его в другую дату. Спортсмен видит вставленные блоки в `DayView` только после «Сохранить» на эту дату.
+- Правка уже сохранённого дня в отдельную спеку не выносится. Её закрывают Spec 001 и `specs/delta-002-initialstate-builder-day.md`: `BuilderDay` заполняет черновик из `GET /api/dayPlan`, повторное «Сохранить» заменяет запись даты через `POST`. Эндпоинт `updateDayPlan` (`PUT`/`PATCH`) не заводится.
 
 ### A3. Удаление упражнения из дня
 - **Спецификация:** `specs/003-remove-exercise.md` (создать).
