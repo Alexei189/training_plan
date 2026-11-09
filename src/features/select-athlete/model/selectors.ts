@@ -6,3 +6,9 @@ type StateWithAthlete = {
 
 export const selectAthleteId = (state: StateWithAthlete) =>
   state.selectAthlete.athleteId;
+
+export const selectPendingAthleteId = (state: StateWithAthlete) =>
+  state.selectAthlete.pendingAthleteId;
+
+export const selectLeaveGuard = (state: StateWithAthlete) =>
+  state.selectAthlete.leaveGuard;
