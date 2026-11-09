@@ -22,13 +22,14 @@
   - `entities/day-plan/model/types.ts` — `SaveBuilderDayBody`. Ответ мутации — `DayData`: `{ date, workoutName, plan }`.
   - `features/select-athlete/` — слайс выбранного спортсмена. Редьюсер подключается в `src/App/store/index.ts`. Модуль `@/entities/day-plan` там уже импортирован, отдельный импорт для мутации не нужен.
 - **Мок (`server/`, типы из `src/` не импортирует):**
-  - `server/app.ts` — `express.json()`, память `Map` по `date`, `GET /api/dayPlan`, `POST /api/saveBuilderDay`.
+  - `server/app.ts` — `express.json()`, память `Map` по паре `athleteId` + `date`, `GET /api/dayPlan`, `POST /api/saveBuilderDay`.
   - `server/index.ts` — слушает порт `3001`.
-  - `POST` отвечает `{ date, workoutName, plan }`, `plan` равен строковым полям `sections`. Следующий `GET` с той же датой отдаёт эту запись. Повторный `POST` заменяет `plan` и `workoutName`. Даты без сохранения — `{ date, workoutName: "", plan: {} }`. Нет `date` или пустой `athleteId` — `400`, запись не создаётся. `athleteId` в ключ хранилища не входит. `workoutName` хранится отдельно от `plan`.
+  - `POST` и `GET` отвечают `{ date, athleteId, workoutName, plan }`. `plan` равен строковым полям `sections`. Повторный `POST` той же пары заменяет `plan` и `workoutName` и не трогает другого спортсмена. Пара без сохранения — `{ date, athleteId, workoutName: "", plan: {} }`. Нет `date` или пустой `athleteId` — `400`. `workoutName` хранится отдельно от `plan`.
 - **Тесты (TDD):**
   - `features/save-builder-day/model/useSaveBuilderDay.test.tsx` — успех инвалидирует тег `DayPlan`; ошибка вызывает `alert`.
   - `server/dayPlan.test.ts` — `POST` затем `GET`, замена плана, пустая дата, `POST` без `athleteId`.
 - **Критерий готовности:** Тренер сохраняет блоки дня. Мок помнит их по дате. Инвалидация `DayPlan` заставляет `useDayPlanQuery` перечитать `GET /api/dayPlan`, и спортсмен видит эти блоки в `DayView`.
+- **Несохранённая смена даты или спортсмена** (`specs/delta-003-unsaved-date-change.md`): календарь и выбор спортсмена на экране тренера не применяют переход, пока в черновике есть несохранённые правки. `BuilderDay` показывает одно окно «Сохранить» / «Отменить изменения». Календарь спортсмена и экран без конструктора меняют выбор сразу.
 
 ### A2. Копирование плана в другую дату
 - **Спецификация:** `specs/002-copy-buider-day.md`.
@@ -47,6 +48,12 @@
   - `features/remove-exercise/` — кнопка удаления и хук.
   - `widgets/builder-day/` — интеграция кнопки в список упражнений.
 - **Тесты:** Проверка, что селектор `selectDayPlanSections` возвращает обновленный список после удаления.
+
+### A4. Индивидуальный план спортсмена
+- **Спецификация:** `specs/delta-004-day-plan-by-athlete.md`. Это правка Spec 001, Spec 002 и Spec 003, не отдельная фича.
+- **Контракт:** `GET` и хранилище мока принимают пару `athleteId` + `date`. `POST` одного спортсмена не заменяет план другого на ту же дату. Черновик `BuilderDay` тоже хранится по этой паре.
+- **Код:** `GET` и хранилище идут по паре. `useDayPlanQuery(athleteId)` вызывают `BuilderDay` и `DayView`.
+- **Вне объёма:** свой id спортсмена при входе под ролью `athlete`. До фазы C `DayView` показывает спортсмена, выбранного тренером в сторе.
 
 ---
 

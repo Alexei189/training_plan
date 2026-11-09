@@ -73,6 +73,7 @@ describe("useSaveBuilderDay", () => {
 
         return jsonResponse({
           date: "2026-11-04",
+          athleteId: "ivanov",
           workoutName: "Лёгкий бег",
           plan: { warmUp: "10 минут" },
         });
@@ -81,7 +82,10 @@ describe("useSaveBuilderDay", () => {
 
     const store = createStore();
     const subscription = store.dispatch(
-      dayPlanApi.endpoints.getDayPlan.initiate({ date: "2026-11-04" }),
+      dayPlanApi.endpoints.getDayPlan.initiate({
+        date: "2026-11-04",
+        athleteId: "ivanov",
+      }),
     );
 
     await waitFor(() => {

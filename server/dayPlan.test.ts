@@ -33,13 +33,23 @@ async function postPlan(body: unknown) {
   });
 }
 
-async function getPlan(date?: string) {
-  const query = date === undefined ? "" : `?date=${encodeURIComponent(date)}`;
+async function getPlan(date?: string, athleteId?: string) {
+  const params = new URLSearchParams();
+
+  if (date !== undefined) {
+    params.set("date", date);
+  }
+
+  if (athleteId !== undefined) {
+    params.set("athleteId", athleteId);
+  }
+
+  const query = params.size > 0 ? `?${params.toString()}` : "";
   return fetch(`${baseUrl}/api/dayPlan${query}`);
 }
 
 describe("dayPlan mock", () => {
-  it("сохраняет план и отдаёт его в GET без athleteId", async () => {
+  it("сохраняет план и отдаёт его в GET этой пары", async () => {
     const date = "2026-11-04-save";
     const saved = await postPlan({
       date,
@@ -51,16 +61,26 @@ describe("dayPlan mock", () => {
     expect(saved.status).toBe(200);
     await expect(saved.json()).resolves.toEqual({
       date,
+      athleteId: "ivanov",
       workoutName: "Лёгкий бег",
       plan: { warmUp: "10 минут легко", note: "" },
     });
 
-    const loaded = await getPlan(date);
+    const loaded = await getPlan(date, "ivanov");
     expect(loaded.status).toBe(200);
     await expect(loaded.json()).resolves.toEqual({
       date,
+      athleteId: "ivanov",
       workoutName: "Лёгкий бег",
       plan: { warmUp: "10 минут легко", note: "" },
+    });
+
+    const other = await getPlan(date, "petrova");
+    await expect(other.json()).resolves.toEqual({
+      date,
+      athleteId: "petrova",
+      workoutName: "",
+      plan: {},
     });
   });
 
@@ -76,7 +96,7 @@ describe("dayPlan mock", () => {
 
     const replaced = await postPlan({
       date,
-      athleteId: "petrova",
+      athleteId: "ivanov",
       workoutName: "   ",
       sections: { intervals: "второй" },
     });
@@ -84,25 +104,51 @@ describe("dayPlan mock", () => {
     expect(replaced.status).toBe(200);
     await expect(replaced.json()).resolves.toEqual({
       date,
+      athleteId: "ivanov",
       workoutName: "",
       plan: { intervals: "второй" },
     });
 
-    const loaded = await getPlan(date);
+    const loaded = await getPlan(date, "ivanov");
     await expect(loaded.json()).resolves.toEqual({
       date,
+      athleteId: "ivanov",
       workoutName: "",
       plan: { intervals: "второй" },
+    });
+
+    const other = await postPlan({
+      date,
+      athleteId: "petrova",
+      workoutName: "Петрова",
+      sections: { main: "своё" },
+    });
+
+    expect(other.status).toBe(200);
+    const ivanov = await getPlan(date, "ivanov");
+    await expect(ivanov.json()).resolves.toEqual({
+      date,
+      athleteId: "ivanov",
+      workoutName: "",
+      plan: { intervals: "второй" },
+    });
+    const petrova = await getPlan(date, "petrova");
+    await expect(petrova.json()).resolves.toEqual({
+      date,
+      athleteId: "petrova",
+      workoutName: "Петрова",
+      plan: { main: "своё" },
     });
   });
 
   it("неизвестная дата отдаёт пустой план", async () => {
     const date = "2026-11-04-empty";
-    const loaded = await getPlan(date);
+    const loaded = await getPlan(date, "ivanov");
 
     expect(loaded.status).toBe(200);
     await expect(loaded.json()).resolves.toEqual({
       date,
+      athleteId: "ivanov",
       workoutName: "",
       plan: {},
     });
@@ -142,9 +188,16 @@ describe("dayPlan mock", () => {
       message: "Параметр athleteId обязателен",
     });
 
-    const loaded = await getPlan(date);
+    const rejectedGet = await getPlan(date);
+    expect(rejectedGet.status).toBe(400);
+    await expect(rejectedGet.json()).resolves.toEqual({
+      message: "Параметр athleteId обязателен",
+    });
+
+    const loaded = await getPlan(date, "ivanov");
     await expect(loaded.json()).resolves.toEqual({
       date,
+      athleteId: "ivanov",
       workoutName: "Было",
       plan: { warmUp: "было" },
     });
@@ -157,9 +210,10 @@ describe("dayPlan mock", () => {
     });
 
     expect(freshReject.status).toBe(400);
-    const fresh = await getPlan(freshDate);
+    const fresh = await getPlan(freshDate, "ivanov");
     await expect(fresh.json()).resolves.toEqual({
       date: freshDate,
+      athleteId: "ivanov",
       workoutName: "",
       plan: {},
     });
@@ -182,6 +236,7 @@ describe("dayPlan mock", () => {
     expect(saved.status).toBe(200);
     await expect(saved.json()).resolves.toEqual({
       date,
+      athleteId: "ivanov",
       workoutName: "Утро",
       plan: { warmUp: "легко", extra: "чужой ключ" },
     });
@@ -197,6 +252,7 @@ describe("dayPlan mock", () => {
     expect(missing.status).toBe(200);
     await expect(missing.json()).resolves.toEqual({
       date: "2026-11-04-name-missing",
+      athleteId: "ivanov",
       workoutName: "",
       plan: { warmUp: "легко" },
     });
@@ -211,6 +267,7 @@ describe("dayPlan mock", () => {
     expect(notString.status).toBe(200);
     await expect(notString.json()).resolves.toEqual({
       date: "2026-11-04-name-number",
+      athleteId: "ivanov",
       workoutName: "",
       plan: { note: "заметка" },
     });

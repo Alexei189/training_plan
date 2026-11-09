@@ -49,10 +49,11 @@ describe("useDayPlanQuery", () => {
   );
 
   it("должен вызывать useGetDayPlanQuery с датой из store", () => {
-    renderHook(() => useDayPlanQuery(), { wrapper });
+    renderHook(() => useDayPlanQuery("ivanov"), { wrapper });
 
     expect(mockUseGetDayPlanQuery).toHaveBeenCalledWith({
       date: "2024-01-01",
+      athleteId: "ivanov",
     });
   });
 
@@ -66,16 +67,17 @@ describe("useDayPlanQuery", () => {
 
     mockUseGetDayPlanQuery.mockReturnValue(mockResult as any);
 
-    const { result } = renderHook(() => useDayPlanQuery(), { wrapper });
+    const { result } = renderHook(() => useDayPlanQuery("ivanov"), { wrapper });
 
     expect(result.current).toBe(mockResult);
   });
 
   it("должен обновлять аргументы при изменении даты в store", () => {
-    const { rerender } = renderHook(() => useDayPlanQuery(), { wrapper });
+    const { rerender } = renderHook(() => useDayPlanQuery("ivanov"), { wrapper });
 
     expect(mockUseGetDayPlanQuery).toHaveBeenLastCalledWith({
       date: "2024-01-01",
+      athleteId: "ivanov",
     });
 
     store.dispatch(setDate("2024-02-15"));
@@ -83,11 +85,12 @@ describe("useDayPlanQuery", () => {
 
     expect(mockUseGetDayPlanQuery).toHaveBeenLastCalledWith({
       date: "2024-02-15",
+      athleteId: "ivanov",
     });
   });
 
   it("должен мемоизировать args — при одинаковой дате ссылка на объект не меняется", () => {
-    const { rerender } = renderHook(() => useDayPlanQuery(), { wrapper });
+    const { rerender } = renderHook(() => useDayPlanQuery("ivanov"), { wrapper });
 
     const firstArgs = mockUseGetDayPlanQuery.mock.calls[0][0];
 
@@ -99,7 +102,7 @@ describe("useDayPlanQuery", () => {
   });
 
   it("должен создавать новый объект args при изменении даты", () => {
-    const { rerender } = renderHook(() => useDayPlanQuery(), { wrapper });
+    const { rerender } = renderHook(() => useDayPlanQuery("ivanov"), { wrapper });
 
     const firstArgs = mockUseGetDayPlanQuery.mock.calls[0][0];
 
@@ -109,11 +112,11 @@ describe("useDayPlanQuery", () => {
     const secondArgs = mockUseGetDayPlanQuery.mock.calls[1][0];
 
     expect(firstArgs).not.toBe(secondArgs);
-    expect(secondArgs).toEqual({ date: "2024-03-01" });
+    expect(secondArgs).toEqual({ date: "2024-03-01", athleteId: "ivanov" });
   });
 
   it("должен корректно работать с несколькими последовательными изменениями даты", () => {
-    const { rerender } = renderHook(() => useDayPlanQuery(), { wrapper });
+    const { rerender } = renderHook(() => useDayPlanQuery("ivanov"), { wrapper });
 
     const dates = ["2024-01-01", "2024-02-01", "2024-03-01", "2024-04-01"];
 
@@ -123,7 +126,10 @@ describe("useDayPlanQuery", () => {
         rerender();
       }
 
-      expect(mockUseGetDayPlanQuery).toHaveBeenLastCalledWith({ date });
+      expect(mockUseGetDayPlanQuery).toHaveBeenLastCalledWith({
+        date,
+        athleteId: "ivanov",
+      });
     });
   });
 
@@ -135,7 +141,7 @@ describe("useDayPlanQuery", () => {
       isSuccess: false,
     } as any);
 
-    const { result } = renderHook(() => useDayPlanQuery(), { wrapper });
+    const { result } = renderHook(() => useDayPlanQuery("ivanov"), { wrapper });
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.data).toBeUndefined();
@@ -149,7 +155,7 @@ describe("useDayPlanQuery", () => {
       error: { message: "Network error" },
     } as any);
 
-    const { result } = renderHook(() => useDayPlanQuery(), { wrapper });
+    const { result } = renderHook(() => useDayPlanQuery("ivanov"), { wrapper });
 
     expect(result.current.isError).toBe(true);
     expect(result.current.error).toEqual({ message: "Network error" });

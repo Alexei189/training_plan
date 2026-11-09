@@ -6,3 +6,6 @@ type StateWithDayCard = {
 
 export const selectCurrentDate = (state: StateWithDayCard) =>
   state.dayCard.currentDate;
+
+export const selectPendingDate = (state: StateWithDayCard) =>
+  state.dayCard.pendingDate;

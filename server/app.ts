@@ -27,6 +27,7 @@ interface StoredDay {
 
 interface DayData {
   date: string;
+  athleteId: string;
   workoutName: string;
   plan: Plan;
 }
@@ -47,7 +48,7 @@ function readSections(value: unknown): Plan {
   const plan: Plan = {};
 
   for (const [key, item] of Object.entries(value)) {
-    if (key === "workoutName" || typeof item !== "string") {
+    if (key === "workoutName" || key === "athleteId" || typeof item !== "string") {
       continue;
     }
 
@@ -55,6 +56,10 @@ function readSections(value: unknown): Plan {
   }
 
   return plan;
+}
+
+function storageKey(athleteId: string, date: string): string {
+  return `${athleteId}\0${date}`;
 }
 
 const days = new Map<string, StoredDay>();
@@ -71,9 +76,17 @@ app.get("/api/dayPlan", (req, res) => {
     return;
   }
 
-  const stored = days.get(date);
+  const athleteId = readAthleteId(req.query.athleteId);
+
+  if (!athleteId) {
+    res.status(400).json({ message: "Параметр athleteId обязателен" });
+    return;
+  }
+
+  const stored = days.get(storageKey(athleteId, date));
   const body: DayData = {
     date,
+    athleteId,
     workoutName: stored?.workoutName ?? "",
     plan: stored?.plan ?? {},
   };
@@ -97,8 +110,8 @@ app.post("/api/saveBuilderDay", (req, res) => {
 
   const workoutName = readWorkoutName(req.body?.workoutName);
   const plan = readSections(req.body?.sections);
-  days.set(date, { workoutName, plan });
+  days.set(storageKey(athleteId, date), { workoutName, plan });
 
-  const body: DayData = { date, workoutName, plan };
+  const body: DayData = { date, athleteId, workoutName, plan };
   res.json(body);
 });

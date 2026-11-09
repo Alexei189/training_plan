@@ -1,14 +1,16 @@
-import { setDate } from "@/features/select-day";
+import { selectLeaveGuard } from "@/features/select-athlete";
+import { requestDate, setDate } from "@/features/select-day";
 import { getCurrentWeekShort } from "@/shared/lib/date";
-import { useAppDispatch } from "@/shared/lib/redux";
+import { useAppDispatch, useAppSelector } from "@/shared/lib/redux";
 
 import styles from "./CalendarBar.module.css";
 
 function CalendarBar() {
   const days = getCurrentWeekShort();
   const dispatch = useAppDispatch();
+  const leaveGuard = useAppSelector(selectLeaveGuard);
   const handleClick = (day: string) => {
-    dispatch(setDate(day));
+    dispatch(leaveGuard ? requestDate(day) : setDate(day));
   };
 
   return (
