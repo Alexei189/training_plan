@@ -5,9 +5,9 @@ import { useAppSelector } from "@/shared/lib/redux";
 
 import { selectCurrentDate } from "./selectors";
 
-export function useDayPlanQuery() {
+export function useDayPlanQuery(athleteId: string) {
   const date = useAppSelector(selectCurrentDate);
-  const args = useMemo<DayArgs>(() => ({ date }), [date]);
+  const args = useMemo<DayArgs>(() => ({ date, athleteId }), [athleteId, date]);
 
   return useGetDayPlanQuery(args);
 }

@@ -1,3 +1,4 @@
+import { selectAthleteId } from "@/features/select-athlete";
 import { selectCurrentDate, useDayPlanQuery } from "@/features/select-day";
 import { planSectionKeys, planSections } from "@/shared/config/planSections";
 import { getDateWithWeekDay } from "@/shared/lib/date";
@@ -8,9 +9,8 @@ import styles from "./DayView.module.css";
 
 function DayView() {
   const currentDate = useAppSelector(selectCurrentDate);
-  console.log(currentDate);
-  const { data } = useDayPlanQuery();
-  console.log(data);
+  const athleteId = useAppSelector(selectAthleteId);
+  const { data } = useDayPlanQuery(athleteId);
   const workoutName = (data?.workoutName ?? "").trim();
 
   return (

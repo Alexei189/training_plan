@@ -2,15 +2,27 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { DayData } from "@/entities/day-plan";
 import { useSaveBuilderDay } from "@/features/save-builder-day";
-import { selectAthleteId } from "@/features/select-athlete";
-import { selectCurrentDate, useDayPlanQuery } from "@/features/select-day";
+import {
+  cancelAthleteRequest,
+  commitAthlete,
+  selectAthleteId,
+  selectPendingAthleteId,
+  setLeaveGuard,
+} from "@/features/select-athlete";
+import {
+  cancelDateRequest,
+  commitDate,
+  selectCurrentDate,
+  selectPendingDate,
+  useDayPlanQuery,
+} from "@/features/select-day";
 import {
   type PlanSectionKey,
   planSectionKeys,
   planSections,
 } from "@/shared/config/planSections";
 import { getDateWithWeekDay } from "@/shared/lib/date";
-import { useAppSelector } from "@/shared/lib/redux";
+import { useAppDispatch, useAppSelector } from "@/shared/lib/redux";
 
 import styles from "./BuilderDay.module.css";
 
@@ -18,6 +30,10 @@ interface DayDraft {
   workoutName: string;
   activeKeys: PlanSectionKey[];
   texts: Partial<Record<PlanSectionKey, string>>;
+}
+
+function pairKey(athleteId: string, date: string): string {
+  return `${athleteId}\0${date}`;
 }
 
 function emptyDraft(): DayDraft {
@@ -34,6 +50,22 @@ function cloneDraft(draft: DayDraft): DayDraft {
     activeKeys: [...draft.activeKeys],
     texts: { ...draft.texts },
   };
+}
+
+function draftsEqual(left: DayDraft, right: DayDraft): boolean {
+  if (left.workoutName !== right.workoutName) {
+    return false;
+  }
+
+  if (left.activeKeys.length !== right.activeKeys.length) {
+    return false;
+  }
+
+  return left.activeKeys.every(
+    (key, index) =>
+      key === right.activeKeys[index] &&
+      (left.texts[key] ?? "") === (right.texts[key] ?? ""),
+  );
 }
 
 function draftFromDayData(data: DayData): DayDraft {
@@ -99,45 +131,88 @@ const actions = [
 type DayAction = (typeof actions)[number]["id"];
 
 function BuilderDay() {
+  const dispatch = useAppDispatch();
   const currentDate = useAppSelector(selectCurrentDate);
+  const pendingDate = useAppSelector(selectPendingDate);
   const athleteId = useAppSelector(selectAthleteId);
-  const { currentData } = useDayPlanQuery();
+  const pendingAthleteId = useAppSelector(selectPendingAthleteId);
+  const { currentData } = useDayPlanQuery(athleteId);
   const { save, isLoading } = useSaveBuilderDay();
   const [drafts, setDrafts] = useState<Record<string, DayDraft>>({});
-  const [editingByDate, setEditingByDate] = useState<Record<string, boolean>>(
+  const [baselines, setBaselines] = useState<Record<string, DayDraft>>({});
+  const [editingByPair, setEditingByPair] = useState<Record<string, boolean>>(
     {},
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [clipboard, setClipboard] = useState<DayDraft | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const draftReady = Object.prototype.hasOwnProperty.call(drafts, currentDate);
-  const draft = drafts[currentDate] ?? emptyDraft();
-  const isEditing = editingByDate[currentDate] ?? true;
+  const key = pairKey(athleteId, currentDate);
+  const draftReady = Object.prototype.hasOwnProperty.call(drafts, key);
+  const draft = drafts[key] ?? emptyDraft();
+  const baseline = baselines[key];
+  const isEditing = editingByPair[key] ?? true;
+  const isDirty = draftReady && (!baseline || !draftsEqual(draft, baseline));
+  const leavePending = pendingDate !== null || pendingAthleteId !== null;
+  const showLeaveDialog = leavePending && isDirty;
+
+  useLayoutEffect(() => {
+    dispatch(setLeaveGuard(true));
+
+    return () => {
+      dispatch(setLeaveGuard(false));
+      dispatch(cancelDateRequest());
+      dispatch(cancelAthleteRequest());
+    };
+  }, [dispatch]);
 
   useEffect(() => {
-    if (!currentData || currentData.date !== currentDate) {
+    if (!leavePending || isDirty) {
       return;
     }
 
+    if (pendingDate !== null) {
+      dispatch(commitDate());
+    }
+
+    if (pendingAthleteId !== null) {
+      dispatch(commitAthlete());
+    }
+  }, [dispatch, isDirty, leavePending, pendingAthleteId, pendingDate]);
+
+  useEffect(() => {
+    if (
+      !currentData ||
+      currentData.date !== currentDate ||
+      currentData.athleteId !== athleteId
+    ) {
+      return;
+    }
+
+    const loaded = draftFromDayData(currentData);
+
     setDrafts((prev) => {
-      if (prev[currentDate]) {
+      if (prev[key]) {
         return prev;
       }
 
-      return {
-        ...prev,
-        [currentDate]: draftFromDayData(currentData),
-      };
+      return { ...prev, [key]: cloneDraft(loaded) };
     });
-  }, [currentData, currentDate]);
+    setBaselines((prev) => {
+      if (prev[key]) {
+        return prev;
+      }
+
+      return { ...prev, [key]: cloneDraft(loaded) };
+    });
+  }, [athleteId, currentData, currentDate, key]);
 
   const updateDraft = (update: (current: DayDraft) => DayDraft) => {
     setDrafts((prev) => {
-      const current = prev[currentDate] ?? emptyDraft();
+      const current = prev[key] ?? emptyDraft();
 
       return {
         ...prev,
-        [currentDate]: update(current),
+        [key]: update(current),
       };
     });
   };
@@ -176,40 +251,104 @@ function BuilderDay() {
     };
   }, [isLoading, menuOpen]);
 
-  const toggleSection = (key: PlanSectionKey) => {
+  useEffect(() => {
+    if (!showLeaveDialog) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (isLoading || event.key !== "Escape") {
+        return;
+      }
+
+      dispatch(cancelDateRequest());
+      dispatch(cancelAthleteRequest());
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dispatch, isLoading, showLeaveDialog]);
+
+  const toggleSection = (keyToToggle: PlanSectionKey) => {
     updateDraft((current) => ({
       ...current,
-      activeKeys: current.activeKeys.includes(key)
-        ? current.activeKeys.filter((item) => item !== key)
-        : [...current.activeKeys, key],
+      activeKeys: current.activeKeys.includes(keyToToggle)
+        ? current.activeKeys.filter((item) => item !== keyToToggle)
+        : [...current.activeKeys, keyToToggle],
     }));
   };
 
   const saveDraft = async () => {
     if (isLoading || !isEditing || draft.activeKeys.length === 0) {
-      return;
+      return false;
     }
 
-    const date = currentDate;
+    const savedKey = key;
     const sections: DayDraft["texts"] = {};
 
-    for (const key of draft.activeKeys) {
-      sections[key] = draft.texts[key] ?? "";
+    for (const sectionKey of draft.activeKeys) {
+      sections[sectionKey] = draft.texts[sectionKey] ?? "";
     }
 
+    const snapshot: DayDraft = {
+      workoutName: draft.workoutName,
+      activeKeys: [...draft.activeKeys],
+      texts: { ...sections },
+    };
     const saved = await save({
-      date,
+      date: currentDate,
       athleteId,
       workoutName: draft.workoutName,
       sections,
     });
 
     if (!saved) {
+      return false;
+    }
+
+    setBaselines((prev) => ({ ...prev, [savedKey]: snapshot }));
+    setEditingByPair((prev) => ({ ...prev, [savedKey]: false }));
+    setMenuOpen(false);
+    return true;
+  };
+
+  const confirmLeave = async () => {
+    const saved = await saveDraft();
+
+    if (!saved) {
       return;
     }
 
-    setEditingByDate((prev) => ({ ...prev, [date]: false }));
-    setMenuOpen(false);
+    dispatch(commitDate());
+    dispatch(commitAthlete());
+  };
+
+  const discardLeave = () => {
+    if (baseline) {
+      const restored = cloneDraft(baseline);
+      setDrafts((prev) => ({ ...prev, [key]: restored }));
+    } else {
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+
+    dispatch(commitDate());
+    dispatch(commitAthlete());
+  };
+
+  const cancelLeave = () => {
+    if (isLoading) {
+      return;
+    }
+
+    dispatch(cancelDateRequest());
+    dispatch(cancelAthleteRequest());
   };
 
   const runAction = (action: DayAction) => {
@@ -219,7 +358,7 @@ function BuilderDay() {
     }
 
     if (action === "edit") {
-      setEditingByDate((prev) => ({ ...prev, [currentDate]: true }));
+      setEditingByPair((prev) => ({ ...prev, [key]: true }));
     }
 
     if (action === "copy" && draftReady) {
@@ -229,7 +368,7 @@ function BuilderDay() {
     if (action === "paste" && clipboard) {
       const next = cloneDraft(clipboard);
       updateDraft(() => next);
-      setEditingByDate((prev) => ({ ...prev, [currentDate]: true }));
+      setEditingByPair((prev) => ({ ...prev, [key]: true }));
     }
 
     setMenuOpen(false);
@@ -255,23 +394,26 @@ function BuilderDay() {
     return false;
   };
 
+  const leaveSaveDisabled =
+    !isEditing || draft.activeKeys.length === 0 || isLoading;
+
   return (
     <div className={styles.root}>
       <div className={styles.cards}>
-        {planSectionKeys.map((key) => {
-          const selected = draft.activeKeys.includes(key);
+        {planSectionKeys.map((sectionKey) => {
+          const selected = draft.activeKeys.includes(sectionKey);
 
           return (
             <button
-              key={key}
+              key={sectionKey}
               type="button"
               className={selected ? styles.cardSelected : styles.card}
-              style={{ backgroundColor: planSections[key].backgroundColor }}
+              style={{ backgroundColor: planSections[sectionKey].backgroundColor }}
               aria-pressed={selected}
               disabled={!isEditing}
-              onClick={() => toggleSection(key)}
+              onClick={() => toggleSection(sectionKey)}
             >
-              {planSections[key].label}
+              {planSections[sectionKey].label}
             </button>
           );
         })}
@@ -351,16 +493,16 @@ function BuilderDay() {
         </div>
 
         <div className={styles.fields}>
-          {draft.activeKeys.map((key) => (
-            <label key={key} className={styles.field}>
-              <span>{planSections[key].label}</span>
+          {draft.activeKeys.map((sectionKey) => (
+            <label key={sectionKey} className={styles.field}>
+              <span>{planSections[sectionKey].label}</span>
               <GrowingTextArea
-                value={draft.texts[key] ?? ""}
+                value={draft.texts[sectionKey] ?? ""}
                 readOnly={!isEditing}
                 onChange={(value) =>
                   updateDraft((current) => ({
                     ...current,
-                    texts: { ...current.texts, [key]: value },
+                    texts: { ...current.texts, [sectionKey]: value },
                   }))
                 }
               />
@@ -368,6 +510,44 @@ function BuilderDay() {
           ))}
         </div>
       </form>
+      {showLeaveDialog && (
+        <div
+          className={styles.leave}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="unsaved-title"
+        >
+          <button
+            type="button"
+            className={styles.backdrop}
+            aria-label="Закрыть"
+            onClick={cancelLeave}
+          />
+          <div className={styles.leaveCard}>
+            <p id="unsaved-title" className={styles.leaveTitle}>
+              Есть несохранённые изменения
+            </p>
+            <button
+              type="button"
+              className={styles.menuItem}
+              disabled={leaveSaveDisabled}
+              onClick={() => {
+                void confirmLeave();
+              }}
+            >
+              {isLoading ? "Сохранение…" : "Сохранить"}
+            </button>
+            <button
+              type="button"
+              className={styles.menuItem}
+              disabled={isLoading}
+              onClick={discardLeave}
+            >
+              Отменить изменения
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
