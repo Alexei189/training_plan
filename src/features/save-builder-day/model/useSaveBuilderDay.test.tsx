@@ -107,7 +107,7 @@ describe("useSaveBuilderDay", () => {
           date: "2026-11-04",
           athleteId: "ivanov",
           workoutName: "Лёгкий бег",
-          sections: { warmUp: "10 минут" },
+          plan: { warmUp: "10 минут" },
         }),
       ).resolves.toBe(true);
     });
@@ -119,7 +119,7 @@ describe("useSaveBuilderDay", () => {
     subscription.unsubscribe();
   });
 
-  it("ошибка вызывает alert и не меняет sections", async () => {
+  it("ошибка вызывает alert и не меняет plan", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -131,7 +131,7 @@ describe("useSaveBuilderDay", () => {
     const wrapper = ({ children }: { children: ReactNode }) => (
       <Provider store={store}>{children}</Provider>
     );
-    const sections = { warmUp: "текст" };
+    const plan = { warmUp: "текст" };
     const workoutName = "Утро";
     const { result } = renderHook(() => useSaveBuilderDay(), { wrapper });
 
@@ -141,13 +141,13 @@ describe("useSaveBuilderDay", () => {
           date: "2026-11-04",
           athleteId: "",
           workoutName,
-          sections,
+          plan,
         }),
       ).resolves.toBe(false);
     });
 
     expect(alertMock).toHaveBeenCalledWith("Параметр athleteId обязателен");
-    expect(sections).toEqual({ warmUp: "текст" });
+    expect(plan).toEqual({ warmUp: "текст" });
     expect(workoutName).toBe("Утро");
   });
 });

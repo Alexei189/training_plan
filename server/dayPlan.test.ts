@@ -55,7 +55,7 @@ describe("dayPlan mock", () => {
       date,
       athleteId: "ivanov",
       workoutName: "Лёгкий бег",
-      sections: { warmUp: "10 минут легко", note: "" },
+      plan: { warmUp: "10 минут легко", note: "" },
     });
 
     expect(saved.status).toBe(200);
@@ -91,14 +91,14 @@ describe("dayPlan mock", () => {
       date,
       athleteId: "ivanov",
       workoutName: "Первая",
-      sections: { warmUp: "первый", main: "останется только если сольётся" },
+      plan: { warmUp: "первый", main: "останется только если сольётся" },
     });
 
     const replaced = await postPlan({
       date,
       athleteId: "ivanov",
       workoutName: "   ",
-      sections: { intervals: "второй" },
+      plan: { intervals: "второй" },
     });
 
     expect(replaced.status).toBe(200);
@@ -121,7 +121,7 @@ describe("dayPlan mock", () => {
       date,
       athleteId: "petrova",
       workoutName: "Петрова",
-      sections: { main: "своё" },
+      plan: { main: "своё" },
     });
 
     expect(other.status).toBe(200);
@@ -155,7 +155,7 @@ describe("dayPlan mock", () => {
   });
 
   it("без date возвращает 400 для POST и GET", async () => {
-    const posted = await postPlan({ athleteId: "ivanov", sections: {} });
+    const posted = await postPlan({ athleteId: "ivanov", plan: {} });
     expect(posted.status).toBe(400);
     await expect(posted.json()).resolves.toEqual({
       message: "Параметр date обязателен",
@@ -175,12 +175,12 @@ describe("dayPlan mock", () => {
       date,
       athleteId: "ivanov",
       workoutName: "Было",
-      sections: { warmUp: "было" },
+      plan: { warmUp: "было" },
     });
 
     const rejected = await postPlan({
       date,
-      sections: { warmUp: "не должно сохраниться" },
+      plan: { warmUp: "не должно сохраниться" },
     });
 
     expect(rejected.status).toBe(400);
@@ -206,7 +206,7 @@ describe("dayPlan mock", () => {
     const freshReject = await postPlan({
       date: freshDate,
       athleteId: "   ",
-      sections: { main: "нет" },
+      plan: { main: "нет" },
     });
 
     expect(freshReject.status).toBe(400);
@@ -225,11 +225,12 @@ describe("dayPlan mock", () => {
       date,
       athleteId: "ivanov",
       workoutName: "  Утро  ",
-      sections: {
+      plan: {
         warmUp: "легко",
         extra: "чужой ключ",
         count: 3,
         workoutName: "внутри",
+        athleteId: "не ключ",
       },
     });
 
@@ -246,7 +247,7 @@ describe("dayPlan mock", () => {
     const missing = await postPlan({
       date: "2026-11-04-name-missing",
       athleteId: "ivanov",
-      sections: { warmUp: "легко" },
+      plan: { warmUp: "легко" },
     });
 
     expect(missing.status).toBe(200);
@@ -261,7 +262,7 @@ describe("dayPlan mock", () => {
       date: "2026-11-04-name-number",
       athleteId: "ivanov",
       workoutName: 12,
-      sections: { note: "заметка" },
+      plan: { note: "заметка" },
     });
 
     expect(notString.status).toBe(200);
@@ -270,6 +271,24 @@ describe("dayPlan mock", () => {
       athleteId: "ivanov",
       workoutName: "",
       plan: { note: "заметка" },
+    });
+  });
+
+  it("не читает поле sections в теле сохранения", async () => {
+    const date = "2026-11-04-sections-ignored";
+    const saved = await postPlan({
+      date,
+      athleteId: "ivanov",
+      workoutName: "Бег",
+      sections: { warmUp: "не должно сохраниться" },
+    });
+
+    expect(saved.status).toBe(200);
+    await expect(saved.json()).resolves.toEqual({
+      date,
+      athleteId: "ivanov",
+      workoutName: "Бег",
+      plan: {},
     });
   });
 });

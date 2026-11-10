@@ -69,7 +69,10 @@ function fieldLabels() {
     return [];
   }
 
-  return Array.from(form.querySelectorAll("label span"), (label) => label.textContent);
+  return Array.from(
+    form.querySelectorAll("label span"),
+    (label) => label.textContent,
+  );
 }
 
 describe("BuilderDay", () => {
@@ -104,7 +107,7 @@ describe("BuilderDay", () => {
       date: "2026-11-04",
       athleteId: "ivanov",
       workoutName: "Утро",
-      sections: {
+      plan: {
         warmUp: "легко",
         intervals: "",
       },
@@ -125,7 +128,7 @@ describe("BuilderDay", () => {
       date: "2026-11-04",
       athleteId: "ivanov",
       workoutName: "",
-      sections: { warmUp: "" },
+      plan: { warmUp: "" },
     });
   });
 
@@ -177,17 +180,19 @@ describe("BuilderDay", () => {
       "Основная работа",
       "Примечание",
     ]);
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "Лёгкий бег",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Лёгкий бег");
     expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("");
-    expect(screen.getByRole("textbox", { name: "Основная работа" })).toHaveValue(
-      "работа",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Основная работа" }),
+    ).toHaveValue("работа");
     expect(screen.getByRole("textbox", { name: "Примечание" })).toHaveValue(
       "заметка",
     );
-    expect(screen.queryByRole("textbox", { name: "Интервальная работа" })).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "Интервальная работа" }),
+    ).toBeNull();
     expect(screen.queryByDisplayValue("скрыто")).toBeNull();
   });
 
@@ -206,11 +211,15 @@ describe("BuilderDay", () => {
     };
     rerender(<BuilderDay />);
 
-    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("своё");
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "",
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "своё",
     );
-    expect(screen.queryByRole("textbox", { name: "Основная работа" })).toBeNull();
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("");
+    expect(
+      screen.queryByRole("textbox", { name: "Основная работа" }),
+    ).toBeNull();
 
     dayPlan.current = {
       date: "2026-11-05",
@@ -222,9 +231,9 @@ describe("BuilderDay", () => {
     });
     rerender(<BuilderDay />);
 
-    expect(screen.getByRole("textbox", { name: "Основная работа" })).toHaveValue(
-      "работа",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Основная работа" }),
+    ).toHaveValue("работа");
 
     dayPlan.current = {
       date: "2026-11-04",
@@ -236,8 +245,12 @@ describe("BuilderDay", () => {
     });
     rerender(<BuilderDay />);
 
-    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("своё");
-    expect(screen.queryByRole("textbox", { name: "Основная работа" })).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "своё",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Основная работа" }),
+    ).toBeNull();
   });
 
   it("блокирует копирование, пока черновик даты не готов", () => {
@@ -291,9 +304,9 @@ describe("BuilderDay", () => {
     fireEvent.click(screen.getByRole("button", { name: "Действия" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Вставить" }));
 
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "Утро",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Утро");
     expect(fieldLabels()).toEqual([
       "Название тренировки",
       "Разминка",
@@ -303,8 +316,12 @@ describe("BuilderDay", () => {
     expect(screen.getByRole("textbox", { name: "Примечание" })).toHaveValue(
       "заметка",
     );
-    expect(screen.queryByRole("textbox", { name: "Интервальная работа" })).toBeNull();
-    expect(screen.queryByRole("textbox", { name: "Основная работа" })).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "Интервальная работа" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "Основная работа" }),
+    ).toBeNull();
 
     dayPlan.current = {
       date: "2026-11-06",
@@ -324,9 +341,9 @@ describe("BuilderDay", () => {
       "Разминка",
       "Примечание",
     ]);
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "Утро",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Утро");
     expect(screen.queryByRole("textbox", { name: "Силовая" })).toBeNull();
 
     act(() => {
@@ -334,9 +351,9 @@ describe("BuilderDay", () => {
     });
     rerender(<BuilderDay />);
 
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "Утро",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Утро");
     expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
       "после копирования",
     );
@@ -377,11 +394,15 @@ describe("BuilderDay", () => {
     };
     rerender(<BuilderDay />);
 
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "Утро",
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Утро");
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "легко",
     );
-    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("легко");
-    expect(screen.queryByRole("textbox", { name: "Основная работа" })).toBeNull();
+    expect(
+      screen.queryByRole("textbox", { name: "Основная работа" }),
+    ).toBeNull();
   });
 
   it("после вставки сохраняет уже новый черновик и не шлёт запрос из вставки", async () => {
@@ -416,23 +437,23 @@ describe("BuilderDay", () => {
       date: "2026-11-05",
       athleteId: "ivanov",
       workoutName: "Старое",
-      sections: { main: "старая работа" },
+      plan: { main: "старая работа" },
     });
-    expect(screen.getByRole("textbox", { name: "Основная работа" })).toHaveAttribute(
-      "readonly",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Основная работа" }),
+    ).toHaveAttribute("readonly");
 
     save.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "Действия" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Вставить" }));
 
     expect(save).not.toHaveBeenCalled();
-    expect(screen.getByRole("textbox", { name: "Разминка" })).not.toHaveAttribute(
-      "readonly",
-    );
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "Утро",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Разминка" }),
+    ).not.toHaveAttribute("readonly");
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Утро");
 
     fireEvent.click(screen.getByRole("button", { name: "Действия" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Сохранить" }));
@@ -445,7 +466,7 @@ describe("BuilderDay", () => {
       date: "2026-11-05",
       athleteId: "ivanov",
       workoutName: "Утро",
-      sections: { warmUp: "легко" },
+      plan: { warmUp: "легко" },
     });
   });
 
@@ -475,9 +496,12 @@ describe("BuilderDay", () => {
 
     const { store } = renderBuilder();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Название тренировки" }), {
-      target: { value: "Новое" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+      {
+        target: { value: "Новое" },
+      },
+    );
     act(() => {
       store.dispatch(requestDate("2026-11-05"));
     });
@@ -494,7 +518,7 @@ describe("BuilderDay", () => {
       date: "2026-11-04",
       athleteId: "ivanov",
       workoutName: "Новое",
-      sections: { warmUp: "легко" },
+      plan: { warmUp: "легко" },
     });
     expect(store.getState().dayCard.currentDate).toBe("2026-11-05");
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -523,7 +547,9 @@ describe("BuilderDay", () => {
 
     expect(store.getState().dayCard.currentDate).toBe("2026-11-04");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("своё");
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "своё",
+    );
   });
 
   it("отмена изменений открывает новую дату и возвращает черновик", () => {
@@ -535,9 +561,12 @@ describe("BuilderDay", () => {
 
     const { store, rerender } = renderBuilder();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Название тренировки" }), {
-      target: { value: "Новое" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+      {
+        target: { value: "Новое" },
+      },
+    );
     act(() => {
       store.dispatch(requestDate("2026-11-05"));
     });
@@ -551,9 +580,9 @@ describe("BuilderDay", () => {
     });
     rerender(<BuilderDay />);
 
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "Утро",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Утро");
   });
 
   it("Escape оставляет дату и черновик", () => {
@@ -575,7 +604,9 @@ describe("BuilderDay", () => {
 
     expect(store.getState().dayCard.currentDate).toBe("2026-11-04");
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("своё");
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "своё",
+    );
   });
 
   it("без блоков не даёт сохранить из окна", () => {
@@ -587,9 +618,12 @@ describe("BuilderDay", () => {
 
     const { store } = renderBuilder();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Название тренировки" }), {
-      target: { value: "Только название" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+      {
+        target: { value: "Только название" },
+      },
+    );
     act(() => {
       store.dispatch(requestDate("2026-11-05"));
     });
@@ -627,12 +661,12 @@ describe("BuilderDay", () => {
     });
     rerender(<BuilderDay />);
 
-    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
-      "Анна",
-    );
-    expect(screen.getByRole("textbox", { name: "Основная работа" })).toHaveValue(
-      "работа",
-    );
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Анна");
+    expect(
+      screen.getByRole("textbox", { name: "Основная работа" }),
+    ).toHaveValue("работа");
     expect(screen.queryByRole("textbox", { name: "Разминка" })).toBeNull();
 
     dayPlan.current = {
@@ -646,7 +680,9 @@ describe("BuilderDay", () => {
     });
     rerender(<BuilderDay />);
 
-    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("своё");
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "своё",
+    );
   });
 
   it("при правке смена спортсмена ждёт сохранения прежнего", async () => {
@@ -681,7 +717,7 @@ describe("BuilderDay", () => {
       date: "2026-11-04",
       athleteId: "ivanov",
       workoutName: "",
-      sections: { warmUp: "своё" },
+      plan: { warmUp: "своё" },
     });
     expect(store.getState().selectAthlete.athleteId).toBe("petrova");
   });
@@ -695,9 +731,12 @@ describe("BuilderDay", () => {
 
     const { store } = renderBuilder();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Название тренировки" }), {
-      target: { value: "Новое" },
-    });
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+      {
+        target: { value: "Новое" },
+      },
+    );
     act(() => {
       store.dispatch(requestAthleteId("petrova"));
     });
@@ -726,6 +765,8 @@ describe("BuilderDay", () => {
 
     expect(store.getState().selectAthlete.athleteId).toBe("ivanov");
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("своё");
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "своё",
+    );
   });
 });
