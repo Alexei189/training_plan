@@ -17,18 +17,18 @@
 - **Спецификации:** `specs/001-save-builder-day.md` (клиент), `specs/003-day-plan-mock.md` (мок).
 - **FSD** (`specs/refactor-001-roadmap-a1-fsd.md`):
   - `widgets/builder-day/ui/BuilderDay.tsx` — пункт «Сохранить». Отдельной кнопки нет. Доступен, когда дата в режиме редактирования и в `activeKeys` есть хотя бы один ключ. Пока запрос идёт, подпись «Сохранение…» и пункт заблокирован.
-  - `features/save-builder-day/model/useSaveBuilderDay.ts` — принимает `{ date, athleteId, workoutName, sections }` и вызывает мутацию. Ошибка сети и сервера — `alert()` с пометкой `// TODO: replace with Toast`. Наружу: сохранение и `isLoading`. Аргументы собирает виджет: фича соседние фичи не импортирует.
+  - `features/save-builder-day/model/useSaveBuilderDay.ts` — принимает `{ date, athleteId, workoutName, plan }` и вызывает мутацию. Ошибка сети и сервера — `alert()` с пометкой `// TODO: replace with Toast`. Наружу: сохранение и `isLoading`. Аргументы собирает виджет: фича соседние фичи не импортирует.
   - `entities/day-plan/api/dayPlanApi.ts` — `saveBuilderDay` через `injectEndpoints` того же `dayPlanApi`, `invalidatesTags: ["DayPlan"]`. Сущность `builder-day` и второй `createApi` не заводятся.
-  - `entities/day-plan/model/types.ts` — `SaveBuilderDayBody`. Ответ мутации — `DayData`: `{ date, workoutName, plan }`.
+  - `entities/day-plan/model/types.ts` — `SaveBuilderDayBody`: `{ date, athleteId, workoutName, plan }`. Ответ мутации — `DayData`: `{ date, athleteId, workoutName, plan }`.
   - `features/select-athlete/` — слайс выбранного спортсмена. Редьюсер подключается в `src/App/store/index.ts`. Модуль `@/entities/day-plan` там уже импортирован, отдельный импорт для мутации не нужен.
 - **Мок (`server/`, типы из `src/` не импортирует):**
   - `server/app.ts` — `express.json()`, память `Map` по паре `athleteId` + `date`, `GET /api/dayPlan`, `POST /api/saveBuilderDay`.
   - `server/index.ts` — слушает порт `3001`.
-  - `POST` и `GET` отвечают `{ date, athleteId, workoutName, plan }`. `plan` равен строковым полям `sections`. Повторный `POST` той же пары заменяет `plan` и `workoutName` и не трогает другого спортсмена. Пара без сохранения — `{ date, athleteId, workoutName: "", plan: {} }`. Нет `date` или пустой `athleteId` — `400`. `workoutName` хранится отдельно от `plan`.
+  - `POST` и `GET` отвечают `{ date, athleteId, workoutName, plan }`. `plan` в ответе равен строковым полям тела `plan`. Поле `sections` в теле не читается. Повторный `POST` той же пары заменяет `plan` и `workoutName` и не трогает другого спортсмена. Пара без сохранения — `{ date, athleteId, workoutName: "", plan: {} }`. Нет `date` или пустой `athleteId` — `400`. `workoutName` хранится отдельно от `plan`.
 - **Тесты (TDD):**
   - `features/save-builder-day/model/useSaveBuilderDay.test.tsx` — успех инвалидирует тег `DayPlan`; ошибка вызывает `alert`.
   - `server/dayPlan.test.ts` — `POST` затем `GET`, замена плана, пустая дата, `POST` без `athleteId`.
-- **Критерий готовности:** Тренер сохраняет блоки дня. Мок помнит их по дате. Инвалидация `DayPlan` заставляет `useDayPlanQuery` перечитать `GET /api/dayPlan`, и спортсмен видит эти блоки в `DayView`.
+- **Критерий готовности:** Тренер сохраняет блоки дня. Мок помнит их по паре спортсмен + дата. Инвалидация `DayPlan` заставляет `useDayPlanQuery` перечитать `GET /api/dayPlan`, и спортсмен видит эти блоки в `DayView`.
 - **Несохранённая смена даты или спортсмена** (`specs/delta-003-unsaved-date-change.md`): календарь и выбор спортсмена на экране тренера не применяют переход, пока в черновике есть несохранённые правки. `BuilderDay` показывает одно окно «Сохранить» / «Отменить изменения». Календарь спортсмена и экран без конструктора меняют выбор сразу.
 
 ### A2. Копирование плана в другую дату
@@ -43,7 +43,7 @@
 - Правка уже сохранённого дня в отдельную спеку не выносится. Её закрывают Spec 001 и `specs/delta-002-initialstate-builder-day.md`: `BuilderDay` заполняет черновик из `GET /api/dayPlan`, повторное «Сохранить» заменяет запись даты через `POST`. Эндпоинт `updateDayPlan` (`PUT`/`PATCH`) не заводится.
 
 ### A3. Удаление упражнения из дня
-- **Спецификация:** `specs/003-remove-exercise.md` (создать).
+- **Спецификация:** `specs/009-remove-exercise.md` (создать). Номер 003 занят моком плана дня.
 - **FSD:**
   - `features/remove-exercise/` — кнопка удаления и хук.
   - `widgets/builder-day/` — интеграция кнопки в список упражнений.
@@ -55,6 +55,16 @@
 - **Код:** `GET` и хранилище идут по паре. `useDayPlanQuery(athleteId)` вызывают `BuilderDay` и `DayView`.
 - **Вне объёма:** свой id спортсмена при входе под ролью `athlete`. До фазы C `DayView` показывает спортсмена, выбранного тренером в сторе.
 
+### A5. Умные действия дня через LLM
+- **Спецификация:** `specs/004-llm-day-actions.md`. Сервер. Меню «…» в BuilderDay этой спекой не покрыто. Поле блоков в сохранении и в JSON модели одно: `plan` (`specs/delta-005-unify-plan-field.md`).
+- **Сервер (`server/`, типы из `src/` не импортирует):**
+  - `server/app.ts` держит `Map`, ищет пару и вызывает `server/smartAction.ts`. Этот файл не импортирует `app.ts`.
+  - `POST /api/smartAction` принимает `{ date, athleteId, action }`. `workoutName` и `plan` читаются из `Map` той же пары. Ответ — SSE: строки `data: {"text":...}`, в конце `data: [DONE]`.
+  - Нет поля, пустая строка или не строка — `400`. Пары нет в `Map` — `404`. Ошибка LLM до заголовков — `500`. После начала потока ошибка уходит как `data: {"error":...}` без `[DONE]`.
+  - Модель Groq `llama-3.3-70b-versatile`, `temperature: 0.3`. `Map` на время запроса не меняется. Запись результата — `POST /api/saveBuilderDay` с тем же полем `plan`.
+- **Тесты (TDD):** `server/smartAction.test.ts` — поток кусков и `[DONE]`, промпт из записи `Map`, `400` и `404`, `500` до потока, `error` после первого куска, `GET` пары после потока не меняется.
+- **Критерий готовности:** Действие тренера переписывает только сохранённый день и приходит потоком. Неделя не генерируется. Запись в мок по-прежнему только через «Сохранить».
+
 ---
 
 ## Фаза B: Аналитика и прогресс
@@ -62,7 +72,7 @@
 **Цель:** Показать спортсмену динамику его тренировок.
 
 ### B1. График прогресса (Recharts)
-- **Спецификация:** `specs/004-progress-chart.md` (создать).
+- **Спецификация:** `specs/005-progress-chart.md` (создать).
 - **FSD:**
   - `widgets/progress-chart/` — новый виджет с графиком.
   - `pages/plan/` — встроить виджет на страницу спортсмена.
@@ -70,7 +80,7 @@
 - **Тесты:** Проверка, что график рендерит корректное количество точек на основе мок-данных.
 
 ### B2. Экспорт плана в PDF
-- **Спецификация:** `specs/005-export-pdf.md` (создать).
+- **Спецификация:** `specs/006-export-pdf.md` (создать).
 - **FSD:**
   - `features/export-plan/` — кнопка и логика генерации.
   - `shared/lib/pdf/` — утилита для генерации PDF (например, `jspdf`).
@@ -82,7 +92,7 @@
 **Цель:** Реализовать реальную аутентификацию вместо мок-переключателя ролей.
 
 ### C1. JWT-аутентификация
-- **Спецификация:** `specs/006-auth.md` (создать).
+- **Спецификация:** `specs/007-auth.md` (создать).
 - **FSD:**
   - `features/auth/` — формы логина/регистрации.
   - `shared/api/baseApi.ts` — добавить `prepareHeaders` для передачи токена.
@@ -90,7 +100,7 @@
 - **Тесты:** Проверка, что при ошибке логина показывается уведомление, а при успехе — редирект на домашнюю страницу роли.
 
 ### C2. Защита маршрутов на бэкенде
-- **Спецификация:** `specs/007-route-protection.md` (создать).
+- **Спецификация:** `specs/008-route-protection.md` (создать).
 - **FSD:**
   - `server/index.ts` — middleware для проверки JWT.
   - `shared/config/roleAccess.ts` — синхронизировать правила с бэкендом.

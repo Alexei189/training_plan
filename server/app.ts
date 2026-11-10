@@ -1,5 +1,7 @@
 import express from "express";
 
+import { handleSmartAction } from "./smartAction";
+
 function readDate(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -40,7 +42,7 @@ function readWorkoutName(value: unknown): string {
   return value.trim();
 }
 
-function readSections(value: unknown): Plan {
+function readPlan(value: unknown): Plan {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {};
   }
@@ -109,9 +111,42 @@ app.post("/api/saveBuilderDay", (req, res) => {
   }
 
   const workoutName = readWorkoutName(req.body?.workoutName);
-  const plan = readSections(req.body?.sections);
+  const plan = readPlan(req.body?.plan);
   days.set(storageKey(athleteId, date), { workoutName, plan });
 
   const body: DayData = { date, athleteId, workoutName, plan };
   res.json(body);
+});
+
+app.post("/api/smartAction", async (req, res) => {
+  const date = readDate(req.body?.date);
+
+  if (!date) {
+    res.status(400).json({ message: "Параметр date обязателен" });
+    return;
+  }
+
+  const athleteId = readAthleteId(req.body?.athleteId);
+
+  if (!athleteId) {
+    res.status(400).json({ message: "Параметр athleteId обязателен" });
+    return;
+  }
+
+  const stored = days.get(storageKey(athleteId, date));
+
+  if (!stored) {
+    res.status(404).json({ message: "План на эту дату не найден" });
+    return;
+  }
+
+  await handleSmartAction(req, res, {
+    date,
+    athleteId,
+    action: req.body?.action,
+    day: {
+      workoutName: stored.workoutName,
+      plan: { ...stored.plan },
+    },
+  });
 });
