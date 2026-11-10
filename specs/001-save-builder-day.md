@@ -1,6 +1,6 @@
 # Spec 001: Сохранение тренировочного плана дня тренером
 
-Связана со Spec 003. Эта спека — клиент текущего экрана тренера. Мок, который запоминает `POST` и отдаёт его в `GET`, описан в Spec 003. Пара спортсмен + дата внесена Delta 004.
+Связана со Spec 003. Эта спека — клиент текущего экрана тренера. Мок, который запоминает `POST` и отдаёт его в `GET`, описан в Spec 003. Пара спортсмен + дата внесена Delta 004. Поле блоков в теле сохранения — `plan` (Delta 005).
 
 ## User Story
 Как тренер, я хочу нажать «Сохранить» в `BuilderDay` и записать план выбранной даты выбранному спортсмену, чтобы у другого спортсмена на ту же дату остался свой план и после смены роли спортсмен увидел в `DayView` блоки именно этого спортсмена. Если на выбранную дату план уже есть, конструктор показывает его, чтобы я мог внести изменения и сохранить их. Если я выбираю другую дату или другого спортсмена, а на текущей дате есть несохранённые изменения, перед сменой появляется модальное окно: сохранить эти изменения или отменить их.
@@ -18,11 +18,11 @@
 
 ## Acceptance Criteria
 1. Пункт «Сохранить» доступен, только когда эта дата в режиме редактирования и в черновике есть хотя бы один ключ в `activeKeys`. Иначе пункт заблокирован.
-2. Нажатие отправляет `POST /api/saveBuilderDay` с телом `{ date, athleteId, workoutName, sections }`.
+2. Нажатие отправляет `POST /api/saveBuilderDay` с телом `{ date, athleteId, workoutName, plan }`.
    - `date` — `selectCurrentDate`.
    - `athleteId` — выбранный в шапке спортсмен.
    - `workoutName` — строка черновика, в том числе пустая.
-   - `sections` — только активные блоки: ключ из `activeKeys`, значение `texts[key] ?? ""`. Неактивные блоки не отправляются.
+   - `plan` — только активные блоки: ключ из `activeKeys`, значение `texts[key] ?? ""`. Неактивные блоки не отправляются. Ответ — тот же `plan`.
 3. Пока запрос идёт, пункт называется «Сохранение…», заблокирован, меню не закрывается. Повторное нажатие не шлёт второй запрос.
 4. Ответ `200`: меню закрывается, дата выходит из режима редактирования, тег `DayPlan` инвалидируется. Следующее чтение `useDayPlanQuery` на ту же дату и того же спортсмена получает сохранённый `plan`.
 5. Ошибка сети или ответ не `200`: `alert` с текстом ошибки, дата остаётся в режиме редактирования, черновик на экране не затирается. Рядом с `alert` стоит комментарий `// TODO: replace with Toast`.
@@ -47,7 +47,7 @@ type SaveBuilderDayBody = {
   date: string;
   athleteId: string;
   workoutName: string;
-  sections: Partial<Record<PlanSectionKey, string>>;
+  plan: Partial<Record<PlanSectionKey, string>>;
 };
 ```
 
@@ -58,9 +58,9 @@ type SaveBuilderDayBody = {
 
 - `features/select-athlete/model/` — слайс выбранного спортсмена. Начальное значение `mockAthletes[0].id`. `AthleteSelect` читает и пишет этот слайс, список спортсменов тот же. Селектор выходит из `features/select-athlete/index.ts`. Редьюсер подключается в `src/App/store/index.ts`.
 - `entities/day-plan/api/dayPlanApi.ts` — мутация `saveBuilderDay` через `injectEndpoints` того же `dayPlanApi`. `invalidatesTags: ["DayPlan"]`. Новый `createApi` и сущность `builder-day` не заводятся. `day-plan` в сторе уже импортирован.
-- `features/save-builder-day/model/useSaveBuilderDay.ts` — хук принимает `{ date, athleteId, workoutName, sections }`, вызывает мутацию, при ошибке вызывает `alert`. Наружу: функция сохранения и флаг `isLoading`.
+- `features/save-builder-day/model/useSaveBuilderDay.ts` — хук принимает `{ date, athleteId, workoutName, plan }`, вызывает мутацию, при ошибке вызывает `alert`. Наружу: функция сохранения и флаг `isLoading`.
 - `features/select-day/model/useDayPlanQuery.ts` — принимает `athleteId` аргументом и сам читает только `selectCurrentDate`. Фича `select-athlete` отсюда не импортируется. `getDayPlan` передаёт в query оба поля. Тег по-прежнему `DayPlan`.
-- `widgets/builder-day/ui/BuilderDay.tsx` и `widgets/day-view/ui/DayView.tsx` передают в хук `selectAthleteId`. Пункт «Сохранить» вызывает хук сохранения. Условия доступности, строка `workoutName` и сбор `sections` остаются в `BuilderDay`. Черновик, режим редактирования и признак готовности хранятся по паре спортсмен + дата. Новый эндпоинт, второй `createApi` и отдельный запрос не заводятся. Кэш `DayPlan` общий с `DayView`.
+- `widgets/builder-day/ui/BuilderDay.tsx` и `widgets/day-view/ui/DayView.tsx` передают в хук `selectAthleteId`. Пункт «Сохранить» вызывает хук сохранения. Условия доступности, строка `workoutName` и сбор `plan` остаются в `BuilderDay`. Черновик, режим редактирования и признак готовности хранятся по паре спортсмен + дата. Новый эндпоинт, второй `createApi` и отдельный запрос не заводятся. Кэш `DayPlan` общий с `DayView`.
 - Смена даты с несохранённым черновиком остаётся в `features/select-day/model/dayCardSlice.ts`: `pendingDate`, `requestDate`, `commitDate`, `cancelDateRequest`. `setDate` по-прежнему меняет `currentDate` сразу.
 - Смена спортсмена остаётся в `features/select-athlete/model/athleteSlice.ts`: `pendingAthleteId` и `leaveGuard`. `requestAthleteId` записывает ожидание и не меняет `athleteId`, если спортсмен другой. `commitAthlete` переносит ожидание в `athleteId`. `cancelAthleteRequest` очищает ожидание. `setAthleteId` меняет `athleteId` сразу. `setLeaveGuard` включает и выключает охрану. Фича соседнюю фичу не импортирует.
 - `widgets/calendar-bar/ui/CalendarBar.tsx` при включённом `leaveGuard` вызывает `requestDate`, иначе `setDate`. `features/select-athlete/ui/AthleteSelect.tsx` при включённом `leaveGuard` вызывает `requestAthleteId`, иначе `setAthleteId`. Соседние слайсы они не импортируют друг у друга: календарь читает `leaveGuard` из `select-athlete`, это слой виджета.
@@ -81,7 +81,7 @@ type SaveBuilderDayBody = {
 - `features/save-builder-day/model/useSaveBuilderDay.test.tsx`:
   - успешный ответ мутации инвалидирует тег `DayPlan`;
   - ошибка вызывает `alert`, черновик хук не меняет.
-- Сбор тела проверяется рядом с виджетом: в `sections` попадают только `activeKeys`, `workoutName` — строка черновика, в том числе пустая, пустой `activeKeys` запрос не отправляет.
+- Сбор тела проверяется рядом с виджетом: в `plan` попадают только `activeKeys`, `workoutName` — строка черновика, в том числе пустая, пустой `activeKeys` запрос не отправляет.
 - Подгрузка черновика проверяется рядом с виджетом: пустой `DayData` даёт пустой черновик; известные ключи `plan` попадают в `activeKeys` и `texts` в порядке `planSectionKeys`; пустая строка блока остаётся активной; неизвестный ключ пропускается; уже изменённый черновик пары ответ не затирает; черновик одного спортсмена не виден при другом `athleteId`.
 - Смена даты проверяется рядом с виджетом: без правок `requestDate` открывает новую дату и окно не появляется; правка названия, состава блоков или текста оставляет текущую дату и показывает окно; «Сохранить» после успеха открывает новую дату и шлёт тело текущей; ошибка сохранения дату не меняет; «Отменить изменения» не шлёт `POST`, стирает правку и открывает новую дату; Escape оставляет текущую дату и черновик; черновик без `activeKeys` не даёт нажать «Сохранить» в окне.
 - Смена спортсмена проверяется рядом с виджетом: без правок `requestAthleteId` меняет спортсмена и окно не появляется; при правке черновика выбранный спортсмен остаётся, пока тренер не сохранит или не отменит изменения; в `POST` уходит прежний `athleteId`; ошибка сохранения спортсмена не меняет; «Отменить изменения» не шлёт `POST`; Escape оставляет прежнего спортсмена; выбор того же спортсмена окно не открывает.

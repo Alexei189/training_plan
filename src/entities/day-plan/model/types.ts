@@ -18,5 +18,5 @@ export type SaveBuilderDayBody = {
   date: string;
   athleteId: string;
   workoutName: string;
-  sections: Partial<Record<PlanSectionKey, string>>;
+  plan: Partial<Record<PlanSectionKey, string>>;
 };

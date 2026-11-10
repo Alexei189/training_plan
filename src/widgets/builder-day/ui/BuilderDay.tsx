@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { DayData } from "@/entities/day-plan";
 import { useSaveBuilderDay } from "@/features/save-builder-day";
 import {
   cancelAthleteRequest,
@@ -16,6 +15,7 @@ import {
   selectPendingDate,
   useDayPlanQuery,
 } from "@/features/select-day";
+import type { DayData } from "@/entities/day-plan";
 import {
   type PlanSectionKey,
   planSectionKeys,
@@ -287,22 +287,22 @@ function BuilderDay() {
     }
 
     const savedKey = key;
-    const sections: DayDraft["texts"] = {};
+    const plan: DayDraft["texts"] = {};
 
     for (const sectionKey of draft.activeKeys) {
-      sections[sectionKey] = draft.texts[sectionKey] ?? "";
+      plan[sectionKey] = draft.texts[sectionKey] ?? "";
     }
 
     const snapshot: DayDraft = {
       workoutName: draft.workoutName,
       activeKeys: [...draft.activeKeys],
-      texts: { ...sections },
+      texts: { ...plan },
     };
     const saved = await save({
       date: currentDate,
       athleteId,
       workoutName: draft.workoutName,
-      sections,
+      plan,
     });
 
     if (!saved) {
@@ -408,7 +408,9 @@ function BuilderDay() {
               key={sectionKey}
               type="button"
               className={selected ? styles.cardSelected : styles.card}
-              style={{ backgroundColor: planSections[sectionKey].backgroundColor }}
+              style={{
+                backgroundColor: planSections[sectionKey].backgroundColor,
+              }}
               aria-pressed={selected}
               disabled={!isEditing}
               onClick={() => toggleSection(sectionKey)}
