@@ -15,6 +15,11 @@ import {
   selectPendingDate,
   useDayPlanQuery,
 } from "@/features/select-day";
+import {
+  type SmartActionPreview,
+  smartDayActions,
+  useSmartDayAction,
+} from "@/features/smart-day-action";
 import type { DayData } from "@/entities/day-plan";
 import {
   type PlanSectionKey,
@@ -86,6 +91,29 @@ function draftFromDayData(data: DayData): DayDraft {
   };
 }
 
+function applyPreview(
+  snapshot: DayDraft,
+  preview: SmartActionPreview,
+): DayDraft {
+  const texts = { ...snapshot.texts };
+  const active = new Set(snapshot.activeKeys);
+
+  for (const sectionKey of planSectionKeys) {
+    if (!Object.prototype.hasOwnProperty.call(preview.plan, sectionKey)) {
+      continue;
+    }
+
+    texts[sectionKey] = preview.plan[sectionKey] ?? "";
+    active.add(sectionKey);
+  }
+
+  return {
+    workoutName: preview.workoutName ?? snapshot.workoutName,
+    activeKeys: planSectionKeys.filter((sectionKey) => active.has(sectionKey)),
+    texts,
+  };
+}
+
 function GrowingTextArea({
   value,
   onChange,
@@ -138,6 +166,11 @@ function BuilderDay() {
   const pendingAthleteId = useAppSelector(selectPendingAthleteId);
   const { currentData } = useDayPlanQuery(athleteId);
   const { save, isLoading } = useSaveBuilderDay();
+  const {
+    run: runSmartAction,
+    preview,
+    isLoading: isSmartLoading,
+  } = useSmartDayAction();
   const [drafts, setDrafts] = useState<Record<string, DayDraft>>({});
   const [baselines, setBaselines] = useState<Record<string, DayDraft>>({});
   const [editingByPair, setEditingByPair] = useState<Record<string, boolean>>(
@@ -146,6 +179,12 @@ function BuilderDay() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [clipboard, setClipboard] = useState<DayDraft | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const mountedRef = useRef(true);
+  const smartLockRef = useRef(false);
+  const snapshotRef = useRef<DayDraft | null>(null);
+  const streamingRef = useRef(false);
+  const [smartLock, setSmartLock] = useState(false);
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const key = pairKey(athleteId, currentDate);
   const draftReady = Object.prototype.hasOwnProperty.call(drafts, key);
   const draft = drafts[key] ?? emptyDraft();
@@ -154,16 +193,31 @@ function BuilderDay() {
   const isDirty = draftReady && (!baseline || !draftsEqual(draft, baseline));
   const leavePending = pendingDate !== null || pendingAthleteId !== null;
   const showLeaveDialog = leavePending && isDirty;
+  const busy = isLoading || smartLock || isSmartLoading;
+  const fieldsLocked = (smartLock || isSmartLoading) && !isLoading;
 
   useLayoutEffect(() => {
+    mountedRef.current = true;
     dispatch(setLeaveGuard(true));
 
     return () => {
+      mountedRef.current = false;
       dispatch(setLeaveGuard(false));
       dispatch(cancelDateRequest());
       dispatch(cancelAthleteRequest());
     };
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!streamingRef.current || !snapshotRef.current) {
+      return;
+    }
+
+    const savedKey = pairKey(athleteId, currentDate);
+    const next = applyPreview(snapshotRef.current, preview);
+
+    setDrafts((prev) => ({ ...prev, [savedKey]: next }));
+  }, [athleteId, currentDate, preview]);
 
   useEffect(() => {
     if (!leavePending || isDirty) {
@@ -223,7 +277,7 @@ function BuilderDay() {
     }
 
     const closeOnOutside = (event: MouseEvent) => {
-      if (isLoading) {
+      if (busy) {
         return;
       }
 
@@ -233,7 +287,7 @@ function BuilderDay() {
     };
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (isLoading) {
+      if (busy) {
         return;
       }
 
@@ -249,7 +303,7 @@ function BuilderDay() {
       document.removeEventListener("mousedown", closeOnOutside);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [isLoading, menuOpen]);
+  }, [busy, menuOpen]);
 
   useEffect(() => {
     if (!showLeaveDialog) {
@@ -257,7 +311,7 @@ function BuilderDay() {
     }
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (isLoading || event.key !== "Escape") {
+      if (busy || event.key !== "Escape") {
         return;
       }
 
@@ -270,7 +324,7 @@ function BuilderDay() {
     return () => {
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [dispatch, isLoading, showLeaveDialog]);
+  }, [busy, dispatch, showLeaveDialog]);
 
   const toggleSection = (keyToToggle: PlanSectionKey) => {
     updateDraft((current) => ({
@@ -282,7 +336,7 @@ function BuilderDay() {
   };
 
   const saveDraft = async () => {
-    if (isLoading || !isEditing || draft.activeKeys.length === 0) {
+    if (busy || !isEditing || draft.activeKeys.length === 0) {
       return false;
     }
 
@@ -343,12 +397,83 @@ function BuilderDay() {
   };
 
   const cancelLeave = () => {
-    if (isLoading) {
+    if (busy) {
       return;
     }
 
     dispatch(cancelDateRequest());
     dispatch(cancelAthleteRequest());
+  };
+
+  const runSmart = async (label: string) => {
+    if (smartLockRef.current || isLoading || !draftReady || isDirty) {
+      return;
+    }
+
+    const savedKey = key;
+    const requestDate = currentDate;
+    const requestAthleteId = athleteId;
+    const snapshot = cloneDraft(draft);
+
+    smartLockRef.current = true;
+    setSmartLock(true);
+    setPendingLabel(label);
+    snapshotRef.current = snapshot;
+    streamingRef.current = true;
+
+    const parsed = await runSmartAction({
+      date: requestDate,
+      athleteId: requestAthleteId,
+      action: label,
+    });
+
+    streamingRef.current = false;
+
+    if (!mountedRef.current) {
+      return;
+    }
+
+    if (!parsed) {
+      setDrafts((prev) => ({ ...prev, [savedKey]: snapshot }));
+      snapshotRef.current = null;
+      smartLockRef.current = false;
+      setSmartLock(false);
+      setPendingLabel(null);
+      return;
+    }
+
+    const next = draftFromDayData({
+      date: requestDate,
+      athleteId: requestAthleteId,
+      workoutName: parsed.workoutName,
+      plan: parsed.plan,
+    });
+
+    setDrafts((prev) => ({ ...prev, [savedKey]: next }));
+
+    const saved = await save({
+      date: requestDate,
+      athleteId: requestAthleteId,
+      workoutName: parsed.workoutName,
+      plan: parsed.plan,
+    });
+
+    if (!mountedRef.current) {
+      return;
+    }
+
+    if (saved) {
+      setBaselines((prev) => ({ ...prev, [savedKey]: cloneDraft(next) }));
+      setEditingByPair((prev) => ({ ...prev, [savedKey]: false }));
+      setMenuOpen(false);
+    } else {
+      setEditingByPair((prev) => ({ ...prev, [savedKey]: true }));
+    }
+
+    snapshotRef.current = null;
+    smartLockRef.current = false;
+    setSmartLock(false);
+    setPendingLabel(null);
   };
 
   const runAction = (action: DayAction) => {
@@ -375,27 +500,28 @@ function BuilderDay() {
   };
 
   const isActionDisabled = (action: DayAction) => {
+    const streamBusy = smartLock || isSmartLoading;
+
     if (action === "edit") {
-      return isEditing;
+      return isEditing || streamBusy;
     }
 
     if (action === "save") {
-      return !isEditing || draft.activeKeys.length === 0 || isLoading;
+      return !isEditing || draft.activeKeys.length === 0 || busy;
     }
 
     if (action === "copy") {
-      return !draftReady;
+      return !draftReady || streamBusy;
     }
 
     if (action === "paste") {
-      return clipboard === null;
+      return clipboard === null || streamBusy;
     }
 
     return false;
   };
 
-  const leaveSaveDisabled =
-    !isEditing || draft.activeKeys.length === 0 || isLoading;
+  const leaveSaveDisabled = !isEditing || draft.activeKeys.length === 0 || busy;
 
   return (
     <div className={styles.root}>
@@ -412,7 +538,7 @@ function BuilderDay() {
                 backgroundColor: planSections[sectionKey].backgroundColor,
               }}
               aria-pressed={selected}
-              disabled={!isEditing}
+              disabled={!isEditing || smartLock || isSmartLoading}
               onClick={() => toggleSection(sectionKey)}
             >
               {planSections[sectionKey].label}
@@ -436,7 +562,7 @@ function BuilderDay() {
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 onClick={() => {
-                  if (isLoading) {
+                  if (busy) {
                     return;
                   }
 
@@ -452,7 +578,7 @@ function BuilderDay() {
                     className={styles.backdrop}
                     aria-label="Закрыть меню"
                     onClick={() => {
-                      if (!isLoading) {
+                      if (!busy) {
                         setMenuOpen(false);
                       }
                     }}
@@ -476,6 +602,25 @@ function BuilderDay() {
                         </button>
                       </li>
                     ))}
+                    {smartDayActions.map((action) => (
+                      <li key={action.id} role="none">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={styles.menuItem}
+                          disabled={!draftReady || isDirty || busy}
+                          onClick={() => {
+                            void runSmart(action.label);
+                          }}
+                        >
+                          {pendingLabel === action.label &&
+                          (smartLock || isSmartLoading) &&
+                          !isLoading
+                            ? "Запрос…"
+                            : action.label}
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 </>
               )}
@@ -489,7 +634,7 @@ function BuilderDay() {
                 updateDraft((current) => ({ ...current, workoutName }))
               }
               placeholder="Название тренировки"
-              readOnly={!isEditing}
+              readOnly={!isEditing || fieldsLocked}
             />
           </label>
         </div>
@@ -500,7 +645,7 @@ function BuilderDay() {
               <span>{planSections[sectionKey].label}</span>
               <GrowingTextArea
                 value={draft.texts[sectionKey] ?? ""}
-                readOnly={!isEditing}
+                readOnly={!isEditing || fieldsLocked}
                 onChange={(value) =>
                   updateDraft((current) => ({
                     ...current,
@@ -542,7 +687,7 @@ function BuilderDay() {
             <button
               type="button"
               className={styles.menuItem}
-              disabled={isLoading}
+              disabled={busy}
               onClick={discardLeave}
             >
               Отменить изменения

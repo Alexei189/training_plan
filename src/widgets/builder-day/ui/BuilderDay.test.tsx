@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useSyncExternalStore } from "react";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { act, fireEvent, render, screen } from "@testing-library/react";
@@ -24,11 +25,55 @@ const dayPlan = vi.hoisted(() => ({
     | undefined,
 }));
 
+const smart = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const api = {
+    run: vi.fn(async () => null as unknown),
+    listeners,
+    snapshot: {
+      isLoading: false,
+      preview: { plan: {} as Record<string, string> },
+    },
+    setPreview(preview: { workoutName?: string; plan: Record<string, string> }) {
+      api.snapshot = { ...api.snapshot, preview };
+      api.listeners.forEach((listener) => {
+        listener();
+      });
+    },
+  };
+
+  return api;
+});
+
 vi.mock("@/features/save-builder-day", () => ({
   useSaveBuilderDay: () => ({
     save,
     isLoading: false,
   }),
+}));
+
+vi.mock("@/features/smart-day-action", () => ({
+  smartDayActions: [
+    { id: "ease", label: "Сделай этот день легче" },
+    { id: "intervals", label: "Замени основную работу на интервалы" },
+  ],
+  useSmartDayAction: () => {
+    const snapshot = useSyncExternalStore(
+      (onStoreChange: () => void) => {
+        smart.listeners.add(onStoreChange);
+        return () => {
+          smart.listeners.delete(onStoreChange);
+        };
+      },
+      () => smart.snapshot,
+    );
+
+    return {
+      run: smart.run,
+      preview: snapshot.preview,
+      isLoading: snapshot.isLoading,
+    };
+  },
 }));
 
 vi.mock("@/features/select-day", async () => {
@@ -79,6 +124,9 @@ describe("BuilderDay", () => {
   beforeEach(() => {
     save.mockReset();
     save.mockResolvedValue(true);
+    smart.run.mockReset();
+    smart.run.mockResolvedValue(null);
+    smart.snapshot = { isLoading: false, preview: { plan: {} } };
     dayPlan.current = undefined;
   });
 
@@ -744,6 +792,166 @@ describe("BuilderDay", () => {
 
     expect(save).not.toHaveBeenCalled();
     expect(store.getState().selectAthlete.athleteId).toBe("petrova");
+  });
+
+  it("блокирует умные действия, пока черновик не готов", () => {
+    renderBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+
+    expect(
+      screen.getByRole("menuitem", { name: "Сделай этот день легче" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("menuitem", {
+        name: "Замени основную работу на интервалы",
+      }),
+    ).toBeDisabled();
+  });
+
+  it("на сохранённом черновике отправляет подпись действия", async () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Утро",
+      plan: { warmUp: "легко" },
+    };
+
+    renderBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Сделай этот день легче" }),
+    );
+    await act(async () => {
+      await smart.run.mock.results[0]?.value;
+    });
+
+    expect(smart.run).toHaveBeenCalledWith({
+      date: "2026-11-04",
+      athleteId: "ivanov",
+      action: "Сделай этот день легче",
+    });
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("по куску печатает основную работу и не стирает ещё не пришедший блок", async () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Утро",
+      plan: { warmUp: "легко" },
+    };
+    smart.run.mockImplementation(() => {
+      smart.setPreview({ plan: { main: "40" } });
+      return new Promise(() => undefined);
+    });
+
+    renderBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Замени основную работу на интервалы" }),
+    );
+
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "легко",
+    );
+    expect(
+      screen.getByRole("textbox", { name: "Основная работа" }),
+    ).toHaveValue("40");
+    expect(
+      screen.getByRole("textbox", { name: "Основная работа" }),
+    ).toHaveAttribute("readonly");
+  });
+
+  it("после разбора сохраняет план модели и заменяет известные блоки", async () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Утро",
+      plan: { warmUp: "легко", note: "заметка" },
+    };
+    smart.run.mockResolvedValue({
+      workoutName: "Восстановительный бег",
+      plan: { main: "40 минут", extra: "чужой" },
+    });
+
+    renderBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Сделай этот день легче" }),
+    );
+    await act(async () => {
+      await smart.run.mock.results[0]?.value;
+      await save.mock.results[0]?.value;
+    });
+
+    expect(save).toHaveBeenCalledWith({
+      date: "2026-11-04",
+      athleteId: "ivanov",
+      workoutName: "Восстановительный бег",
+      plan: { main: "40 минут", extra: "чужой" },
+    });
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Восстановительный бег");
+    expect(
+      screen.getByRole("textbox", { name: "Основная работа" }),
+    ).toHaveValue("40 минут");
+    expect(screen.queryByRole("textbox", { name: "Разминка" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Примечание" })).toBeNull();
+    expect(screen.queryByDisplayValue("чужой")).toBeNull();
+  });
+
+  it("ошибка разбора и error потока не сохраняют день и возвращают снимок", async () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Утро",
+      plan: { warmUp: "легко" },
+    };
+    smart.run.mockImplementation(async () => {
+      smart.setPreview({ plan: { main: "40" }, workoutName: "Черновик" });
+      return null;
+    });
+
+    renderBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Сделай этот день легче" }),
+    );
+    await act(async () => {
+      await smart.run.mock.results[0]?.value;
+    });
+
+    expect(save).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("textbox", { name: "Название тренировки" }),
+    ).toHaveValue("Утро");
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "легко",
+    );
+    expect(
+      screen.queryByRole("textbox", { name: "Основная работа" }),
+    ).toBeNull();
+  });
+
+  it("при правке умные действия заблокированы", () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Утро",
+      plan: { warmUp: "легко" },
+    };
+
+    renderBuilder();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Разминка" }), {
+      target: { value: "своё" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+
+    expect(
+      screen.getByRole("menuitem", { name: "Сделай этот день легче" }),
+    ).toBeDisabled();
   });
 
   it("Escape оставляет прежнего спортсмена", () => {
