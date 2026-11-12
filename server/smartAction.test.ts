@@ -155,7 +155,7 @@ describe("smartAction", () => {
     });
   });
 
-  it("просит Groq модель llama-3.3-70b-versatile с temperature 0.3 и пересылает только content", async () => {
+  it("просит Groq модель openai/gpt-oss-120b с temperature 0.3 и пересылает только content", async () => {
     const date = "2026-11-04-smart-groq";
 
     await postPlan({
@@ -201,7 +201,7 @@ describe("smartAction", () => {
     });
 
     const body = JSON.parse(String(calls[0].init.body));
-    expect(body.model).toBe("llama-3.3-70b-versatile");
+    expect(body.model).toBe("openai/gpt-oss-120b");
     expect(body.temperature).toBe(0.3);
     expect(body.stream).toBe(true);
     expect(body.messages[1].content).toContain('"workoutName":"Лёгкий бег"');

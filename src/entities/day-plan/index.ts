@@ -2,5 +2,13 @@ export {
   dayPlanApi,
   useGetDayPlanQuery,
   useSaveBuilderDayMutation,
+  useSmartActionMutation,
 } from "./api/dayPlanApi";
-export type { DayArgs, DayData, Plan, SaveBuilderDayBody } from "./model/types";
+export { setSmartActionProgress } from "./api/smartActionProgress";
+export type {
+  DayArgs,
+  DayData,
+  Plan,
+  SaveBuilderDayBody,
+  SmartActionBody,
+} from "./model/types";
