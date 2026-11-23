@@ -2,14 +2,17 @@ import type { ReactNode } from "react";
 import { useSyncExternalStore } from "react";
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import { useReturnToCurrentWeek } from "@/app/layouts/useReturnToCurrentWeek";
 import {
   requestAthleteId,
   selectAthleteReducer,
   setAthleteId,
 } from "@/features/select-athlete";
 import { dayCardReducer, requestDate, setDate } from "@/features/select-day";
+import { baseApi } from "@/shared/api";
+import { getDateString, getWeekDates } from "@/shared/lib/date";
 
 import BuilderDay from "./BuilderDay";
 
@@ -91,12 +94,20 @@ vi.mock("@/features/select-day", async () => {
   };
 });
 
-function renderBuilder() {
+function Harness() {
+  useReturnToCurrentWeek();
+  return <BuilderDay />;
+}
+
+function renderBuilder(ui: ReactNode = <BuilderDay />) {
   const store = configureStore({
     reducer: {
       dayCard: dayCardReducer,
       selectAthlete: selectAthleteReducer,
+      [baseApi.reducerPath]: baseApi.reducer,
     },
+    middleware: (getDefaultMiddleware) =>
+      getDefaultMiddleware().concat(baseApi.middleware),
   });
 
   store.dispatch(setDate("2026-11-04"));
@@ -105,7 +116,7 @@ function renderBuilder() {
     <Provider store={store}>{children}</Provider>
   );
 
-  return { store, ...render(<BuilderDay />, { wrapper }) };
+  return { store, ...render(ui, { wrapper }) };
 }
 
 function fieldLabels() {
@@ -128,6 +139,38 @@ describe("BuilderDay", () => {
     smart.run.mockResolvedValue(null);
     smart.snapshot = { isLoading: false, preview: { plan: {} } };
     dayPlan.current = undefined;
+    vi.stubGlobal(
+      "Request",
+      class TestRequest {
+        url: string;
+
+        constructor(input: string) {
+          this.url = input;
+        }
+      },
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        const url = new URL(raw, "http://localhost");
+        const date = url.searchParams.get("date") ?? "2026-11-04";
+
+        return new Response(
+          JSON.stringify({
+            date,
+            athleteId: "ivanov",
+            workoutName: "",
+            plan: {},
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("отправляет активные блоки и название черновика", async () => {
@@ -976,5 +1019,229 @@ describe("BuilderDay", () => {
     expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
       "своё",
     );
+  });
+
+  it("копирует неделю с одной записью и не копирует пустую", async () => {
+    const { store } = renderBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+    expect(screen.getByRole("menuitem", { name: "Копировать неделю" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Среда",
+      plan: { warmUp: "легко" },
+    };
+    store.dispatch(setDate("2026-11-04"));
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+      expect(screen.getByRole("menuitem", { name: "Копировать неделю" })).toBeEnabled();
+    });
+  });
+
+  it("вставляет копию в другую неделю того же спортсмена и не меняет источник", async () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Среда",
+      plan: { warmUp: "легко" },
+    };
+    const { store } = renderBuilder();
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+      expect(screen.getByRole("menuitem", { name: "Копировать неделю" })).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Копировать неделю" }));
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "Вставить неделю" })).toBeEnabled();
+    });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Разминка" }), {
+      target: { value: "после копии" },
+    });
+    act(() => {
+      store.dispatch(setDate("2026-11-11"));
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Вставить неделю" }));
+
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("легко");
+
+    act(() => {
+      store.dispatch(setDate("2026-11-18"));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Вставить неделю" }));
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("легко");
+
+    act(() => {
+      store.dispatch(setDate("2026-11-04"));
+    });
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue(
+      "после копии",
+    );
+  });
+
+  it("после смены спортсмена вставляет копию в текущую неделю", async () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Среда",
+      plan: { warmUp: "легко" },
+    };
+    const { store } = renderBuilder(<Harness />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+      expect(screen.getByRole("menuitem", { name: "Копировать неделю" })).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Копировать неделю" }));
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "Вставить неделю" })).toBeEnabled();
+    });
+
+    act(() => {
+      store.dispatch(setAthleteId("petrova"));
+    });
+
+    expect(store.getState().dayCard.currentDate).toBe(getDateString());
+    fireEvent.click(screen.getByRole("menuitem", { name: "Вставить неделю" }));
+    expect(save).not.toHaveBeenCalled();
+
+    act(() => {
+      store.dispatch(setDate(getWeekDates(getDateString())[2]));
+    });
+
+    expect(screen.getByRole("textbox", { name: "Название тренировки" })).toHaveValue(
+      "Среда",
+    );
+    expect(screen.getByRole("textbox", { name: "Разминка" })).toHaveValue("легко");
+  });
+
+  it("пустой слот очищает черновик целевого дня", async () => {
+    dayPlan.current = {
+      date: "2026-11-09",
+      workoutName: "",
+      plan: { main: "старое" },
+    };
+    const { store } = renderBuilder();
+
+    act(() => {
+      store.dispatch(setDate("2026-11-09"));
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Основная работа" })).toHaveValue(
+        "старое",
+      );
+    });
+
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Среда",
+      plan: { warmUp: "легко" },
+    };
+    act(() => {
+      store.dispatch(setDate("2026-11-04"));
+    });
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+      expect(screen.getByRole("menuitem", { name: "Копировать неделю" })).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Копировать неделю" }));
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "Вставить неделю" })).toBeEnabled();
+    });
+
+    act(() => {
+      store.dispatch(setDate("2026-11-09"));
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Вставить неделю" }));
+
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox", { name: "Основная работа" })).toBeNull();
+  });
+
+  it("сохранение ухода пишет все изменённые дни недели", async () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Среда",
+      plan: { warmUp: "легко" },
+    };
+    const { store } = renderBuilder(<Harness />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+      expect(screen.getByRole("menuitem", { name: "Копировать неделю" })).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Копировать неделю" }));
+    await waitFor(() => {
+      expect(screen.getByRole("menuitem", { name: "Вставить неделю" })).toBeEnabled();
+    });
+    act(() => {
+      store.dispatch(setDate("2026-11-11"));
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Вставить неделю" }));
+    act(() => {
+      store.dispatch(requestAthleteId("petrova"));
+    });
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(7);
+    });
+
+    expect(save).toHaveBeenCalledWith({
+      date: "2026-11-11",
+      athleteId: "ivanov",
+      workoutName: "Среда",
+      plan: { warmUp: "легко" },
+    });
+    expect(save).toHaveBeenCalledWith({
+      date: "2026-11-09",
+      athleteId: "ivanov",
+      workoutName: "",
+      plan: {},
+    });
+    await waitFor(() => {
+      expect(store.getState().selectAthlete.athleteId).toBe("petrova");
+    });
+    expect(store.getState().dayCard.currentDate).toBe(getDateString());
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("отмена ухода откатывает вставленную неделю и применяет спортсмена", async () => {
+    dayPlan.current = {
+      date: "2026-11-04",
+      workoutName: "Среда",
+      plan: { warmUp: "легко" },
+    };
+    const { store } = renderBuilder(<Harness />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Действия" }));
+      expect(
+        screen.getByRole("menuitem", { name: "Копировать неделю" }),
+      ).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Копировать неделю" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("menuitem", { name: "Вставить неделю" }),
+      ).toBeEnabled();
+    });
+    act(() => {
+      store.dispatch(setDate("2026-11-11"));
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Вставить неделю" }));
+    act(() => {
+      store.dispatch(requestAthleteId("petrova"));
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Отменить изменения" }));
+
+    expect(save).not.toHaveBeenCalled();
+    expect(store.getState().selectAthlete.athleteId).toBe("petrova");
+    expect(store.getState().dayCard.currentDate).toBe(getDateString());
   });
 });
