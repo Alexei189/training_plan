@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { useCopyWeek } from "@/features/copy-week";
 import { useSaveBuilderDay } from "@/features/save-builder-day";
 import {
   cancelAthleteRequest,
@@ -26,7 +27,7 @@ import {
   planSectionKeys,
   planSections,
 } from "@/shared/config/planSections";
-import { getDateWithWeekDay } from "@/shared/lib/date";
+import { getDateWithWeekDay, getWeekDates } from "@/shared/lib/date";
 import { useAppDispatch, useAppSelector } from "@/shared/lib/redux";
 
 import styles from "./BuilderDay.module.css";
@@ -154,6 +155,8 @@ const actions = [
   { id: "save", label: "Сохранить" },
   { id: "copy", label: "Копировать" },
   { id: "paste", label: "Вставить" },
+  { id: "copy-week", label: "Копировать неделю" },
+  { id: "paste-week", label: "Вставить неделю" },
 ] as const;
 
 type DayAction = (typeof actions)[number]["id"];
@@ -178,6 +181,25 @@ function BuilderDay() {
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [clipboard, setClipboard] = useState<DayDraft | null>(null);
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+  const weekDates = getWeekDates(currentDate);
+  const {
+    copyWeek,
+    pasteWeek,
+    hasWeek,
+    isCopying,
+    canCopy,
+  } = useCopyWeek({
+    athleteId,
+    dates: weekDates,
+    draftAt: (date) => {
+      const pair = pairKey(athleteId, date);
+      return Object.prototype.hasOwnProperty.call(draftsRef.current, pair)
+        ? draftsRef.current[pair]
+        : null;
+    },
+  });
   const menuRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
   const smartLockRef = useRef(false);
@@ -191,9 +213,29 @@ function BuilderDay() {
   const baseline = baselines[key];
   const isEditing = editingByPair[key] ?? true;
   const isDirty = draftReady && (!baseline || !draftsEqual(draft, baseline));
+  const isPairDirty = (date: string) => {
+    const pair = pairKey(athleteId, date);
+
+    if (!Object.prototype.hasOwnProperty.call(drafts, pair)) {
+      return false;
+    }
+
+    const day = drafts[pair];
+    const dayBaseline = baselines[pair];
+    return !dayBaseline || !draftsEqual(day, dayBaseline);
+  };
+  const weekDirty = weekDates.some((date) => isPairDirty(date));
   const leavePending = pendingDate !== null || pendingAthleteId !== null;
-  const showLeaveDialog = leavePending && isDirty;
-  const busy = isLoading || smartLock || isSmartLoading;
+  const showLeaveDialog = leavePending && weekDirty;
+  const busy = isLoading || smartLock || isSmartLoading || isCopying;
+  const openDaySaveable = isEditing && draft.activeKeys.length > 0;
+  const canSaveWeek =
+    !busy &&
+    (openDaySaveable ||
+      weekDates.some((date) => {
+        const day = drafts[pairKey(athleteId, date)];
+        return Boolean(day && isPairDirty(date) && day.activeKeys.length > 0);
+      }));
   const fieldsLocked = (smartLock || isSmartLoading) && !isLoading;
 
   useLayoutEffect(() => {
@@ -220,18 +262,20 @@ function BuilderDay() {
   }, [athleteId, currentDate, preview]);
 
   useEffect(() => {
-    if (!leavePending || isDirty) {
+    if (!leavePending || weekDirty) {
+      return;
+    }
+
+    if (pendingAthleteId !== null) {
+      dispatch(cancelDateRequest());
+      dispatch(commitAthlete());
       return;
     }
 
     if (pendingDate !== null) {
       dispatch(commitDate());
     }
-
-    if (pendingAthleteId !== null) {
-      dispatch(commitAthlete());
-    }
-  }, [dispatch, isDirty, leavePending, pendingAthleteId, pendingDate]);
+  }, [dispatch, weekDirty, leavePending, pendingAthleteId, pendingDate]);
 
   useEffect(() => {
     if (
@@ -335,65 +379,92 @@ function BuilderDay() {
     }));
   };
 
-  const saveDraft = async () => {
-    if (busy || !isEditing || draft.activeKeys.length === 0) {
+  const saveOpenWeek = async () => {
+    if (busy) {
       return false;
     }
 
-    const savedKey = key;
-    const plan: DayDraft["texts"] = {};
+    const athlete = athleteId;
 
-    for (const sectionKey of draft.activeKeys) {
-      plan[sectionKey] = draft.texts[sectionKey] ?? "";
+    for (const date of weekDates) {
+      const pair = pairKey(athlete, date);
+      const day = drafts[pair];
+
+      if (!day) {
+        continue;
+      }
+
+      const dayBaseline = baselines[pair];
+      const dirty = !dayBaseline || !draftsEqual(day, dayBaseline);
+      const openDay = date === currentDate && isEditing && day.activeKeys.length > 0;
+
+      if (!dirty && !openDay) {
+        continue;
+      }
+
+      const plan: DayDraft["texts"] = {};
+
+      for (const sectionKey of day.activeKeys) {
+        plan[sectionKey] = day.texts[sectionKey] ?? "";
+      }
+
+      const saved = await save({
+        date,
+        athleteId: athlete,
+        workoutName: day.workoutName,
+        plan,
+      });
+
+      if (!saved) {
+        return false;
+      }
+
+      const snapshot: DayDraft = {
+        workoutName: day.workoutName,
+        activeKeys: [...day.activeKeys],
+        texts: { ...plan },
+      };
+      setBaselines((prev) => ({ ...prev, [pair]: snapshot }));
+      setEditingByPair((prev) => ({ ...prev, [pair]: false }));
     }
 
-    const snapshot: DayDraft = {
-      workoutName: draft.workoutName,
-      activeKeys: [...draft.activeKeys],
-      texts: { ...plan },
-    };
-    const saved = await save({
-      date: currentDate,
-      athleteId,
-      workoutName: draft.workoutName,
-      plan,
-    });
-
-    if (!saved) {
-      return false;
-    }
-
-    setBaselines((prev) => ({ ...prev, [savedKey]: snapshot }));
-    setEditingByPair((prev) => ({ ...prev, [savedKey]: false }));
     setMenuOpen(false);
     return true;
   };
 
   const confirmLeave = async () => {
-    const saved = await saveDraft();
+    await saveOpenWeek();
+  };
 
-    if (!saved) {
+  const restoreWeek = () => {
+    setDrafts((prev) => {
+      const next = { ...prev };
+
+      for (const date of weekDates) {
+        const pair = pairKey(athleteId, date);
+        const dayBaseline = baselines[pair];
+
+        if (dayBaseline) {
+          next[pair] = cloneDraft(dayBaseline);
+        } else {
+          delete next[pair];
+        }
+      }
+
+      return next;
+    });
+  };
+
+  const discardLeave = () => {
+    restoreWeek();
+
+    if (pendingAthleteId !== null) {
+      dispatch(cancelDateRequest());
+      dispatch(commitAthlete());
       return;
     }
 
     dispatch(commitDate());
-    dispatch(commitAthlete());
-  };
-
-  const discardLeave = () => {
-    if (baseline) {
-      const restored = cloneDraft(baseline);
-      setDrafts((prev) => ({ ...prev, [key]: restored }));
-    } else {
-      setDrafts((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    }
-
-    dispatch(commitDate());
-    dispatch(commitAthlete());
   };
 
   const cancelLeave = () => {
@@ -478,7 +549,7 @@ function BuilderDay() {
 
   const runAction = (action: DayAction) => {
     if (action === "save") {
-      void saveDraft();
+      void saveOpenWeek();
       return;
     }
 
@@ -496,6 +567,36 @@ function BuilderDay() {
       setEditingByPair((prev) => ({ ...prev, [key]: true }));
     }
 
+    if (action === "copy-week") {
+      void copyWeek();
+      return;
+    }
+
+    if (action === "paste-week") {
+      const pasted = pasteWeek();
+
+      if (pasted) {
+        setDrafts((prev) => {
+          const next = { ...prev };
+
+          weekDates.forEach((date, index) => {
+            next[pairKey(athleteId, date)] = pasted[index];
+          });
+
+          return next;
+        });
+        setEditingByPair((prev) => {
+          const next = { ...prev };
+
+          for (const date of weekDates) {
+            next[pairKey(athleteId, date)] = true;
+          }
+
+          return next;
+        });
+      }
+    }
+
     setMenuOpen(false);
   };
 
@@ -503,25 +604,33 @@ function BuilderDay() {
     const streamBusy = smartLock || isSmartLoading;
 
     if (action === "edit") {
-      return isEditing || streamBusy;
+      return isEditing || streamBusy || isCopying;
     }
 
     if (action === "save") {
-      return !isEditing || draft.activeKeys.length === 0 || busy;
+      return !canSaveWeek;
     }
 
     if (action === "copy") {
-      return !draftReady || streamBusy;
+      return !draftReady || streamBusy || isCopying;
     }
 
     if (action === "paste") {
-      return clipboard === null || streamBusy;
+      return clipboard === null || streamBusy || isCopying;
+    }
+
+    if (action === "copy-week") {
+      return !canCopy || busy;
+    }
+
+    if (action === "paste-week") {
+      return !hasWeek || busy;
     }
 
     return false;
   };
 
-  const leaveSaveDisabled = !isEditing || draft.activeKeys.length === 0 || busy;
+  const leaveSaveDisabled = !canSaveWeek;
 
   return (
     <div className={styles.root}>
@@ -598,7 +707,9 @@ function BuilderDay() {
                         >
                           {action.id === "save" && isLoading
                             ? "Сохранение…"
-                            : action.label}
+                            : action.id === "copy-week" && isCopying
+                              ? "Копирование…"
+                              : action.label}
                         </button>
                       </li>
                     ))}
