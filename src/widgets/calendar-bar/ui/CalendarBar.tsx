@@ -1,32 +1,51 @@
 import { selectLeaveGuard } from "@/features/select-athlete";
-import { requestDate, setDate } from "@/features/select-day";
-import { getCurrentWeekShort } from "@/shared/lib/date";
+import { requestDate, selectCurrentDate, setDate } from "@/features/select-day";
+import { getWeekDates, shiftDate } from "@/shared/lib/date";
 import { useAppDispatch, useAppSelector } from "@/shared/lib/redux";
 
 import styles from "./CalendarBar.module.css";
 
+const weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
 function CalendarBar() {
-  const days = getCurrentWeekShort();
   const dispatch = useAppDispatch();
+  const currentDate = useAppSelector(selectCurrentDate);
   const leaveGuard = useAppSelector(selectLeaveGuard);
-  const handleClick = (day: string) => {
-    dispatch(leaveGuard ? requestDate(day) : setDate(day));
+  const days = getWeekDates(currentDate);
+
+  const openDate = (date: string) => {
+    dispatch(leaveGuard ? requestDate(date) : setDate(date));
   };
 
   return (
     <div className={styles.bar__body}>
-      {days.map((day) => (
+      <button
+        type="button"
+        className={styles.shift}
+        onClick={() => openDate(shiftDate(currentDate, -7))}
+      >
+        Предыдущая неделя
+      </button>
+      {days.map((date, index) => (
         <button
-          onClick={() => handleClick(day.date)}
+          type="button"
+          onClick={() => openDate(date)}
           className={styles.cell}
-          key={day.day}
+          key={date}
         >
           <span className={styles.cell__content}>
-            <span>{day.day}</span>
-            <span>{day.weekday}</span>
+            <span>{Number(date.slice(8, 10))}</span>
+            <span>{weekdayLabels[index]}</span>
           </span>
         </button>
       ))}
+      <button
+        type="button"
+        className={styles.shift}
+        onClick={() => openDate(shiftDate(currentDate, 7))}
+      >
+        Следующая неделя
+      </button>
     </div>
   );
 }

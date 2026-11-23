@@ -7,9 +7,11 @@ import { useAppSelector } from "@/shared/lib/redux";
 import { TitleBar } from "@/widgets/title-bar";
 
 import styles from "./AppLayout.module.css";
+import { useReturnToCurrentWeek } from "./useReturnToCurrentWeek";
 
 export function AppLayout() {
   const role = useAppSelector(selectRole);
+  useReturnToCurrentWeek();
 
   return (
     <div className={styles.root}>
